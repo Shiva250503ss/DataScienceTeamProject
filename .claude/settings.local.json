@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(md-to-pdf:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(python:*)"
     ]
   }
 }
