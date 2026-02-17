@@ -495,7 +495,7 @@ class GPUModelFactory:
             import xgboost as xgb
             models['XGBClassifier_GPU'] = xgb.XGBClassifier(
                 n_estimators=100, max_depth=6, random_state=rs, tree_method='gpu_hist',
-                gpu_id=gpu, predictor='gpu_predictor', verbosity=0, eval_metric='logloss'
+                device=f'cuda:{gpu}', predictor='gpu_predictor', verbosity=0, eval_metric='logloss'
             )
         except: pass
         try:
@@ -534,7 +534,7 @@ class GPUModelFactory:
             import xgboost as xgb
             models['XGBRegressor_GPU'] = xgb.XGBRegressor(
                 n_estimators=100, max_depth=6, random_state=rs, tree_method='gpu_hist',
-                gpu_id=gpu, predictor='gpu_predictor', verbosity=0
+                device=f'cuda:{gpu}', predictor='gpu_predictor', verbosity=0
             )
         except: pass
         try:
@@ -830,12 +830,18 @@ class RLModelSelector:
         
         if task_type is None or task_type == TaskType.CLASSIFICATION:
             p = os.path.join(self.config.MODELS_DIR, self.config.PPO_MODEL_CLF_FILE)
-            if os.path.exists(p + ".zip"):
+            # If there's a directory with same name, explicitly use .zip file
+            if os.path.isdir(p) and os.path.exists(p + ".zip"):
+                p = p + ".zip"
+            if os.path.exists(p if p.endswith('.zip') else p + ".zip"):
                 self.ppo_clf = PPO.load(p, device='cuda')
                 print(" Loaded CLF model (GPU)")
         if task_type is None or task_type == TaskType.REGRESSION:
             p = os.path.join(self.config.MODELS_DIR, self.config.PPO_MODEL_REG_FILE)
-            if os.path.exists(p + ".zip"):
+            # If there's a directory with same name, explicitly use .zip file
+            if os.path.isdir(p) and os.path.exists(p + ".zip"):
+                p = p + ".zip"
+            if os.path.exists(p if p.endswith('.zip') else p + ".zip"):
                 self.ppo_reg = PPO.load(p, device='cuda')
                 print("✅ Loaded REG model (GPU)")
     
