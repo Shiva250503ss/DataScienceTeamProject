@@ -1,0 +1,34 @@
+# RL Model Selector Requirements
+# Install with: pip install -r requirements_rl.txt
+
+# Core Data Science
+pandas>=1.3.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+scipy>=1.7.0
+
+# Visualization
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# Web Framework
+streamlit>=1.20.0
+
+# Reinforcement Learning
+stable-baselines3>=1.8.0
+gymnasium>=0.28.0
+
+# GPU-Accelerated ML Libraries (Optional but recommended for better performance)
+xgboost>=1.7.0
+lightgbm>=3.3.0
+catboost>=1.1.0
+
+# PyTorch (Required for stable-baselines3)
+# For CPU:
+# torch>=2.0.0
+
+# For GPU (CUDA 11.8):
+# pip install torch --index-url https://download.pytorch.org/whl/cu118
+
+# For GPU (CUDA 12.1):
+# pip install torch --index-url https://download.pytorch.org/whl/cu121
