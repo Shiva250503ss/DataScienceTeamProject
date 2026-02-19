@@ -137,7 +137,6 @@ def preprocess_data(X, y, task_type):
     categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
 
     if len(categorical_cols) > 0:
-        from sklearn.preprocessing import LabelEncoder
         X_processed = X.copy()
         for col in categorical_cols:
             le = LabelEncoder()
