@@ -251,13 +251,13 @@ class RLModelSelectorConfig:
         'Ridge', 'Lasso', 'ElasticNet', 'SVR', 'KNeighborsRegressor'
     ])
     
-    PPO_TOTAL_TIMESTEPS: int = 100000
+    PPO_TOTAL_TIMESTEPS: int = 300000
     PPO_LEARNING_RATE: float = 3e-4
     PPO_N_STEPS: int = 2048
     PPO_BATCH_SIZE: int = 64
     PPO_N_EPOCHS: int = 10
     PPO_GAMMA: float = 0.99
-    PPO_NET_ARCH: List[int] = field(default_factory=lambda: [256, 128, 64])
+    PPO_NET_ARCH: List[int] = field(default_factory=lambda: [256, 256, 128])
     
     LANDMARK_SUBSAMPLE: int = 1000
     LANDMARK_CV_FOLDS: int = 3
@@ -608,6 +608,59 @@ class DataCollector:
         return perfs
 
 
+    def collect_real_data(self, task_type, n_datasets=50):
+        """Generate training data by running actual cross-validation on synthetic datasets.
+        Produces high-quality training examples where performances truly reflect
+        the dataset meta-features.  Slower than simulation but much more accurate."""
+        from sklearn.datasets import make_classification, make_regression
+
+        self.logger.info(f"Collecting {n_datasets} REAL training datasets (actual CV)...")
+        data  = []
+        names = self.config.get_model_names(task_type)
+
+        for i in range(n_datasets):
+            try:
+                if task_type == TaskType.CLASSIFICATION:
+                    ns = int(np.random.randint(300, 1500))
+                    nf = int(np.random.randint(5, 25))
+                    nc = int(np.random.choice([2, 3, 4]))
+                    X, y = make_classification(
+                        n_samples=ns, n_features=nf,
+                        n_informative=max(2, nf // 2),
+                        n_classes=min(nc, nf // 2),
+                        random_state=i + 5000
+                    )
+                else:
+                    ns = int(np.random.randint(300, 1500))
+                    nf = int(np.random.randint(5, 25))
+                    X, y = make_regression(
+                        n_samples=ns, n_features=nf,
+                        n_informative=max(2, nf // 2),
+                        noise=float(np.random.uniform(0.1, 20.0)),
+                        random_state=i + 5000
+                    )
+
+                X = pd.DataFrame(X, columns=[f'f{j}' for j in range(nf)])
+                y = pd.Series(y)
+
+                mf    = self.meta_extractor.extract(X, y, task_type, compute_landmarks=True)
+                perfs = self.train_models(X, y, task_type)
+
+                default = 0.5 if task_type == TaskType.CLASSIFICATION else 0.0
+                data.append({
+                    'meta_features':        mf.tolist(),
+                    'model_performances':   [perfs.get(n, default) for n in names]
+                })
+
+                if (i + 1) % 10 == 0:
+                    self.logger.info(f"  Real data: {i+1}/{n_datasets}")
+            except Exception as e:
+                self.logger.warning(f"  Dataset {i} skipped: {str(e)[:60]}")
+
+        self.logger.info(f"Collected {len(data)} real training datasets")
+        return data
+
+
 # ==============================================================================
 # SECTION 8: SYNTHETIC DATA GENERATOR
 # ==============================================================================
@@ -629,7 +682,7 @@ class SyntheticDataGenerator:
                                        n_classes=min(nc, nf//2), random_state=i)
             X = pd.DataFrame(X, columns=[f'f{j}' for j in range(nf)])
             y = pd.Series(y)
-            mf = self.meta_extractor.extract(X, y, TaskType.CLASSIFICATION, compute_landmarks=False)
+            mf = self.meta_extractor.extract(X, y, TaskType.CLASSIFICATION, compute_landmarks=True)
             perfs = self._sim_clf(mf)
             data.append({'meta_features': mf.tolist(),
                         'model_performances': [perfs.get(n, 0.5) for n in self.config.CLF_MODEL_NAMES]})
@@ -646,7 +699,7 @@ class SyntheticDataGenerator:
                                    noise=np.random.uniform(0.1, 10), random_state=i)
             X = pd.DataFrame(X, columns=[f'f{j}' for j in range(nf)])
             y = pd.Series(y)
-            mf = self.meta_extractor.extract(X, y, TaskType.REGRESSION, compute_landmarks=False)
+            mf = self.meta_extractor.extract(X, y, TaskType.REGRESSION, compute_landmarks=True)
             perfs = self._sim_reg(mf)
             data.append({'meta_features': mf.tolist(),
                         'model_performances': [perfs.get(n, 0.5) for n in self.config.REG_MODEL_NAMES]})
@@ -654,27 +707,95 @@ class SyntheticDataGenerator:
         return data
     
     def _sim_clf(self, mf):
-        base = 0.7 + np.random.rand() * 0.15
+        """Meta-feature-aware simulation using landmark scores as signals."""
+        # Key meta-feature indices (see MetaFeatureExtractor.FEATURE_NAMES)
+        dimensionality = float(mf[5])           # n_features / n_samples
+        mean_corr      = float(mf[18])          # mean pairwise feature correlation
+        high_corr      = float(mf[20])          # fraction of highly correlated pairs
+        intrinsic_dim  = float(mf[27])          # pca_95_components / n_features
+        # Landmark scores: actual CV accuracy of simple landmark models
+        # These provide strong signal about which model class fits this dataset
+        lm_tree = float(np.clip(mf[28], 0, 1))  # DecisionTree(depth=3) accuracy
+        lm_nb   = float(np.clip(mf[29], 0, 1))  # GaussianNB accuracy
+        lm_lr   = float(np.clip(mf[30], 0, 1))  # LogisticRegression accuracy
+        lm_knn  = float(np.clip(mf[31], 0, 1))  # KNN(k=1) accuracy
+
+        def noise(): return float(np.random.randn() * 0.015)
+
         perfs = {}
-        for m in self.config.CLF_MODEL_NAMES:
-            p = base
-            if 'XGB' in m: p += 0.03
-            elif 'LGBM' in m: p += 0.02
-            elif 'CatBoost' in m: p += 0.02
-            p += np.random.randn() * 0.02
-            perfs[m] = np.clip(p, 0.5, 0.99)
+        # Gradient boosting: strongest on tabular data; tracks tree landmark best
+        boost = 0.50 + lm_tree * 0.38 + noise()
+        perfs['XGBClassifier_GPU']          = float(np.clip(boost + 0.03, 0.40, 0.99))
+        perfs['LGBMClassifier_GPU']         = float(np.clip(boost + 0.02, 0.40, 0.99))
+        perfs['CatBoostClassifier_GPU']     = float(np.clip(boost + 0.02, 0.40, 0.99))
+        perfs['GradientBoostingClassifier'] = float(np.clip(boost,        0.40, 0.99))
+
+        # Random forests: good for high-dimensional, non-linear data
+        rf = 0.48 + lm_tree * 0.32 + (1.0 - intrinsic_dim) * 0.05 + noise()
+        perfs['RandomForestClassifier'] = float(np.clip(rf,        0.40, 0.99))
+        perfs['ExtraTreesClassifier']   = float(np.clip(rf + 0.01, 0.40, 0.99))
+
+        # Logistic regression: best when data is linearly separable
+        lr = 0.42 + lm_lr * 0.42 + high_corr * 0.05 + noise()
+        perfs['LogisticRegression'] = float(np.clip(lr, 0.35, 0.97))
+
+        # SVC: benefits from linear structure but handles nonlinearity
+        svc = 0.42 + lm_lr * 0.30 + lm_tree * 0.10 + noise()
+        perfs['SVC'] = float(np.clip(svc, 0.35, 0.97))
+
+        # KNN: good instance-based signal but degrades in high dimensions
+        knn = 0.38 + lm_knn * 0.42 - dimensionality * 0.12 + noise()
+        perfs['KNeighborsClassifier'] = float(np.clip(knn, 0.25, 0.97))
+
+        # Naive Bayes: assumes feature independence; penalised by high correlation
+        nb = 0.38 + lm_nb * 0.38 - mean_corr * 0.12 + noise()
+        perfs['GaussianNB'] = float(np.clip(nb, 0.25, 0.90))
+
         return perfs
     
     def _sim_reg(self, mf):
-        base = 0.6 + np.random.rand() * 0.2
+        """Meta-feature-aware simulation for regression using landmark R2 scores."""
+        dimensionality = float(mf[5])
+        high_corr      = float(mf[20])
+        intrinsic_dim  = float(mf[27])
+        # Regression landmarks (R2 scores, can be negative on poor-fit datasets)
+        lm_tree   = float(np.clip(mf[28], -1, 1))  # DecisionTree(depth=3) R2
+        lm_linear = float(np.clip(mf[29], -1, 1))  # LinearRegression R2
+        lm_ridge  = float(np.clip(mf[30], -1, 1))  # Ridge R2
+        lm_knn    = float(np.clip(mf[31], -1, 1))  # KNN(k=3) R2
+
+        def noise(): return float(np.random.randn() * 0.02)
+
+        lm_tree_pos = max(lm_tree,   0.0)
+        lm_lin_pos  = max(lm_linear, 0.0)
+
         perfs = {}
-        for m in self.config.REG_MODEL_NAMES:
-            p = base
-            if 'XGB' in m: p += 0.04
-            elif 'LGBM' in m: p += 0.03
-            elif 'CatBoost' in m: p += 0.03
-            p += np.random.randn() * 0.03
-            perfs[m] = np.clip(p, 0.0, 0.99)
+        # Gradient boosting regressors: track tree landmark
+        boost = 0.42 + lm_tree_pos * 0.42 + noise()
+        perfs['XGBRegressor_GPU']          = float(np.clip(boost + 0.04, -0.5, 0.99))
+        perfs['LGBMRegressor_GPU']         = float(np.clip(boost + 0.03, -0.5, 0.99))
+        perfs['CatBoostRegressor_GPU']     = float(np.clip(boost + 0.03, -0.5, 0.99))
+        perfs['GradientBoostingRegressor'] = float(np.clip(boost,        -0.5, 0.99))
+
+        # Random forests
+        rf = 0.38 + lm_tree_pos * 0.38 + (1.0 - intrinsic_dim) * 0.05 + noise()
+        perfs['RandomForestRegressor'] = float(np.clip(rf,        -0.5, 0.99))
+        perfs['ExtraTreesRegressor']   = float(np.clip(rf + 0.01, -0.5, 0.99))
+
+        # Linear models: strong when linear landmark is high (underlying linear relationship)
+        lin = 0.35 + lm_lin_pos * 0.50 + high_corr * 0.08 + noise()
+        perfs['Ridge']      = float(np.clip(lin,        -0.5, 0.99))
+        perfs['Lasso']      = float(np.clip(lin - 0.02, -0.5, 0.99))
+        perfs['ElasticNet'] = float(np.clip(lin - 0.01, -0.5, 0.99))
+
+        # SVR
+        svr = 0.33 + max(lm_ridge, 0.0) * 0.32 + noise()
+        perfs['SVR'] = float(np.clip(svr, -0.5, 0.99))
+
+        # KNN: degrades sharply in high dimensions
+        knn = 0.28 + max(lm_knn, 0.0) * 0.45 - dimensionality * 0.18 + noise()
+        perfs['KNeighborsRegressor'] = float(np.clip(knn, -0.5, 0.99))
+
         return perfs
 
 
@@ -707,17 +828,23 @@ class ModelSelectionEnv(gym.Env):
         perfs = self.data[self.idx]['model_performances']
         if isinstance(perfs, dict):
             perfs = [perfs.get(n, 0.5) for n in self.model_names]
-        sel, best = perfs[action], max(perfs)
-        reward = sel
-        if sel == best:
-            reward += 0.1
+
+        sel   = perfs[action]
+        best  = max(perfs)
+        worst = min(perfs)
+        spread = best - worst
+
+        # Normalised regret reward: 1.0 = picked the best model, 0.0 = picked the worst.
+        # This gives a strong gradient signal even when absolute score differences are small.
+        reward = (sel - worst) / spread if spread > 1e-4 else 1.0
+
+        is_optimal = (sel >= best - 1e-4)
+        if is_optimal:
             self.optimal += 1
-        elif sel >= best - 0.02:
-            reward += 0.05
         self.episodes += 1
         self.total_reward += reward
         obs = np.array(self.data[self.idx]['meta_features'], dtype=np.float32)
-        return obs, reward, True, False, {'is_optimal': sel == best}
+        return obs, reward, True, False, {'is_optimal': is_optimal}
     
     def get_stats(self):
         return {'optimal_rate': self.optimal / max(self.episodes, 1),
@@ -898,33 +1025,50 @@ class RLModelSelector:
 
 def run_train(source, task, n_datasets, timesteps):
     gpu_manager.require_gpu()
-    
+
     config = RLModelSelectorConfig()
     config.N_DATASETS_CLF = config.N_DATASETS_REG = n_datasets
     config.PPO_TOTAL_TIMESTEPS = timesteps
     logger = setup_logging(config)
-    
+
     logger.info("=" * 70)
     logger.info(f" GPU TRAINING - {gpu_manager.gpu_name}")
-    logger.info(f"Source: {source}, Task: {task}")
+    logger.info(f"Source: {source}, Task: {task}, Datasets: {n_datasets}, Timesteps: {timesteps}")
     logger.info("=" * 70)
-    
-    gen = SyntheticDataGenerator(config, logger)
-    
+
+    gen       = SyntheticDataGenerator(config, logger)
+    collector = DataCollector(config, logger)
+
     if task in ['classification', 'both']:
-        data = gen.generate_clf(n_datasets)
+        logger.info("\n=== CLASSIFICATION PHASE ===")
+        synthetic_data = gen.generate_clf(n_datasets)
+        if source == 'real':
+            real_n    = max(20, n_datasets // 5)
+            real_data = collector.collect_real_data(TaskType.CLASSIFICATION, real_n)
+            data      = synthetic_data + real_data
+            logger.info(f"Training on {len(synthetic_data)} synthetic + {len(real_data)} real datasets")
+        else:
+            data = synthetic_data
         t = PPOTrainer(config, TaskType.CLASSIFICATION, logger)
         t.prepare(data)
         t.train(timesteps)
         t.evaluate(500)
-    
+
     if task in ['regression', 'both']:
-        data = gen.generate_reg(n_datasets)
+        logger.info("\n=== REGRESSION PHASE ===")
+        synthetic_data = gen.generate_reg(n_datasets)
+        if source == 'real':
+            real_n    = max(20, n_datasets // 5)
+            real_data = collector.collect_real_data(TaskType.REGRESSION, real_n)
+            data      = synthetic_data + real_data
+            logger.info(f"Training on {len(synthetic_data)} synthetic + {len(real_data)} real datasets")
+        else:
+            data = synthetic_data
         t = PPOTrainer(config, TaskType.REGRESSION, logger)
         t.prepare(data)
         t.train(timesteps)
         t.evaluate(500)
-    
+
     logger.info("\n TRAINING COMPLETE!")
 
 
