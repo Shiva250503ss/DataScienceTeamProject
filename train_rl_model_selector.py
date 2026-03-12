@@ -50,14 +50,14 @@ except ImportError:
 # MODELS
 # =============================================================================
 CLASSIFICATION_MODELS = {
-    'LogisticRegression':         LogisticRegression(max_iter=1000, random_state=42),
+    'LogisticRegression':         LogisticRegression(max_iter=200, random_state=42),
     'GaussianNB':                 GaussianNB(),
     'KNeighborsClassifier':       KNeighborsClassifier(n_neighbors=5),
-    'SVC':                        SVC(kernel='rbf', probability=True, random_state=42),
+    'SVC':                        SVC(kernel='rbf', probability=False, random_state=42),
     'DecisionTreeClassifier':     DecisionTreeClassifier(random_state=42),
-    'RandomForestClassifier':     RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1),
-    'ExtraTreesClassifier':       ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1),
-    'GradientBoostingClassifier': GradientBoostingClassifier(n_estimators=100, random_state=42),
+    'RandomForestClassifier':     RandomForestClassifier(n_estimators=10, random_state=42, n_jobs=-1),
+    'ExtraTreesClassifier':       ExtraTreesClassifier(n_estimators=10, random_state=42, n_jobs=-1),
+    'GradientBoostingClassifier': GradientBoostingClassifier(n_estimators=10, random_state=42),
 }
 
 REGRESSION_MODELS = {
@@ -67,9 +67,9 @@ REGRESSION_MODELS = {
     'SVR':                        SVR(kernel='rbf'),
     'KNeighborsRegressor':        KNeighborsRegressor(n_neighbors=5),
     'DecisionTreeRegressor':      DecisionTreeRegressor(random_state=42),
-    'RandomForestRegressor':      RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1),
-    'ExtraTreesRegressor':        ExtraTreesRegressor(n_estimators=100, random_state=42, n_jobs=-1),
-    'GradientBoostingRegressor':  GradientBoostingRegressor(n_estimators=100, random_state=42),
+    'RandomForestRegressor':      RandomForestRegressor(n_estimators=10, random_state=42, n_jobs=-1),
+    'ExtraTreesRegressor':        ExtraTreesRegressor(n_estimators=10, random_state=42, n_jobs=-1),
+    'GradientBoostingRegressor':  GradientBoostingRegressor(n_estimators=10, random_state=42),
 }
 
 
@@ -432,19 +432,25 @@ def extract_meta_features(X, y, task_type='classification'):
 def evaluate_model(model, X, y, task_type):
     """
     Returns a score in [0, 1].
-      Classification -> 3-fold accuracy          (low error  = high score)
-      Regression     -> 3-fold R2 clipped to >= 0 (low error  = high score;
-                        negative R2 means worse than predicting the mean -> 0)
+      Classification -> train/test split accuracy  (low error  = high score)
+      Regression     -> train/test split R2 clipped to >= 0
+
+    Uses train_test_split (1 fit) instead of 3-fold CV (3 fits) for 3x speed.
     """
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, r2_score
+    from sklearn.base import clone
     try:
-        cv = KFold(n_splits=3, shuffle=True, random_state=42)
+        X_tr, X_te, y_tr, y_te = train_test_split(
+            X, y, test_size=0.25, random_state=42
+        )
+        m = clone(model)
+        m.fit(X_tr, y_tr)
         if task_type == 'classification':
-            scores = cross_val_score(model, X, y, cv=cv,
-                                     scoring='accuracy', error_score=0.0)
+            score = accuracy_score(y_te, m.predict(X_te))
         else:
-            scores = cross_val_score(model, X, y, cv=cv,
-                                     scoring='r2', error_score=0.0)
-        return float(np.clip(np.mean(scores), 0.0, 1.0))
+            score = r2_score(y_te, m.predict(X_te))
+        return float(np.clip(score, 0.0, 1.0))
     except Exception:
         return 0.0
 
@@ -480,13 +486,31 @@ if HAS_SB3:
             self.action_space      = Discrete(len(models))
             self.observation_space = Box(low=0.0, high=1.0, shape=(32,), dtype=np.float32)
 
-        # -- reset: pick the next dataset, return its 32 meta-features ---------
+            # Pre-compute and cache meta-features + full per-dataset score arrays
+            print(f"[*] Pre-computing meta-features for {len(datasets)} datasets...")
+            self._feature_cache = {}
+            self._score_cache   = {}   # {dataset_idx: [score_model0, score_model1, ...]}
+            for i, (_, X, y) in enumerate(datasets):
+                try:
+                    self._feature_cache[i] = extract_meta_features(X, y, self.task_type)
+                except Exception:
+                    self._feature_cache[i] = np.zeros(32, dtype=np.float32)
+                try:
+                    self._score_cache[i] = [
+                        evaluate_model(m, X, y, self.task_type)
+                        for m in models.values()
+                    ]
+                except Exception:
+                    self._score_cache[i] = [0.5] * len(models)
+            print(f"[OK] Meta-feature cache ready ({len(self._feature_cache)} entries)")
+
+        # -- reset: pick the next dataset, return its cached 32 meta-features --
         def reset(self, seed=None, options=None):
             super().reset(seed=seed)
             self._idx     = self._idx % len(self.datasets)
             name, X, y    = self.datasets[self._idx]
             self._current = (name, X, y)
-            obs = extract_meta_features(X, y, self.task_type)
+            obs = self._feature_cache[self._idx]
             return obs, {}          # gymnasium API: (obs, info)
 
         # -- step: evaluate selected model -> reward = score (low error = high reward)
@@ -495,9 +519,16 @@ if HAS_SB3:
             model_name   = self.model_names[int(action)]
             model        = self.models[model_name]
 
-            # Score in [0, 1]:  low error -> high score -> high reward
-            score  = evaluate_model(model, X, y, self.task_type)
-            reward = score          # absolute quality signal
+            # Rank-based reward: best model=1.0, worst model=0.0, others in between.
+            # e.g. 8 models: rank 1st->1.0, 2nd->0.857, ..., 8th->0.0
+            # This penalises picking 2nd-best clearly, unlike score/best_score.
+            score     = evaluate_model(model, X, y, self.task_type)
+            all_scores = self._score_cache.get(self._idx, [score])
+            action_idx = int(action)
+            sorted_scores = sorted(all_scores, reverse=True)
+            rank   = sorted_scores.index(all_scores[action_idx])  # 0=best
+            n      = max(len(all_scores) - 1, 1)
+            reward = float(1.0 - rank / n)   # best=1.0, worst=0.0
 
             self._idx += 1
 
@@ -603,6 +634,8 @@ def train_rl_model(task_type='classification', total_timesteps=50_000):
         gamma=0.99,
         max_grad_norm=0.5,       # gradient clipping prevents NaN
         normalize_advantage=True,
+        ent_coef=0.2,            # entropy bonus forces exploration (prevents RF-always collapse)
+        device='cpu',            # MLP policy is faster on CPU
     )
 
     # --------------------------------------------------------------------------
