@@ -20,6 +20,7 @@ All 32 meta-features are computed from real data -- nothing is hardcoded.
 import numpy as np
 import pandas as pd
 from scipy import stats
+from sklearn.datasets import make_classification, make_regression, make_blobs
 from sklearn.decomposition import PCA
 from sklearn.model_selection import cross_val_score, KFold
 from sklearn.preprocessing import StandardScaler
@@ -212,16 +213,305 @@ def load_openml_datasets(task_type='classification',
     return loaded
 
 
+def generate_synthetic_classification_datasets():
+    """
+    Generate 80 synthetic datasets (10 per model × 8 models).
+    Each group is structurally designed so the target model genuinely wins —
+    not just "happens to perform well" but dominates due to dataset geometry.
+
+    LR    : purely linearly separable, low-dim, zero noise
+    GNB   : independent Gaussian blobs, tiny datasets
+    KNN   : ultra-tight clusters, local structure dominates
+    SVC   : non-linear curved boundaries (moons / circles)
+    DT    : XOR / step-function / axis-aligned splits only
+    RF    : large + many irrelevant features + high noise
+    ET    : very high-dimensional sparse signal
+    GBM   : multi-cluster, complex non-linear interactions
+    """
+    from sklearn.datasets import make_moons, make_circles
+
+    datasets = []
+    rng = np.random.RandomState(42)
+
+    # ── LogisticRegression (10) ──────────────────────────────────────────────
+    # Pure linear separability: large class_sep, zero redundancy, zero noise
+    for i in range(10):
+        nf = 2 + i % 6          # 2–7 features
+        X, y = make_classification(
+            n_samples=300 + i*30, n_features=nf, n_informative=nf,
+            n_redundant=0, n_clusters_per_class=1,
+            class_sep=3.0, flip_y=0.0, random_state=i)
+        datasets.append((f"syn_lr_{i}", X.astype(np.float32), y))
+
+    # ── GaussianNB (10) ──────────────────────────────────────────────────────
+    # Truly independent Gaussian features, tiny datasets (NB thrives small)
+    for i in range(10):
+        n = 50 + i * 12         # 50–158 samples
+        n_feat = 4
+        # Build truly uncorrelated Gaussian blobs by hand
+        X = rng.randn(n, n_feat).astype(np.float32)
+        y = (rng.rand(n) > 0.5).astype(np.int64)
+        X[y == 0, 0] += 2.5     # class 0 shifted right
+        X[y == 1, 0] -= 2.5     # class 1 shifted left
+        datasets.append((f"syn_gnb_{i}", X, y))
+
+    # ── KNN (10) ──────────────────────────────────────────────────────────────
+    # Ultra-tight blobs (cluster_std=0.25) — local density decides label
+    for i in range(10):
+        centers = 3 + (i % 4)
+        nf      = 2 + (i % 3)
+        X, y = make_blobs(
+            n_samples=200 + i*20, n_features=nf,
+            centers=centers, cluster_std=0.25, random_state=200+i)
+        datasets.append((f"syn_knn_{i}", X.astype(np.float32), y.astype(np.int64)))
+
+    # ── SVC (10) ──────────────────────────────────────────────────────────────
+    # Curved non-linear boundaries — RBF kernel needed, LR fails
+    for i in range(5):
+        X, y = make_moons(n_samples=350 + i*50, noise=0.12 + i*0.02,
+                          random_state=300+i)
+        datasets.append((f"syn_svc_moon_{i}", X.astype(np.float32), y))
+    for i in range(5):
+        X, y = make_circles(n_samples=350 + i*50, noise=0.06 + i*0.01,
+                            factor=0.5, random_state=350+i)
+        datasets.append((f"syn_svc_circ_{i}", X.astype(np.float32), y))
+
+    # ── DecisionTree (10) ─────────────────────────────────────────────────────
+    # Pure axis-aligned step functions — no linear or kernel trick can fit
+    for i in range(10):
+        n = 250 + i * 30
+        X = rng.randn(n, 4).astype(np.float32)
+        if i < 5:
+            # XOR label
+            y = ((X[:, 0] > 0) ^ (X[:, 1] > 0)).astype(np.int64)
+        else:
+            # Multi-axis step function
+            y = (((X[:, 0] > 0).astype(int) +
+                  (X[:, 1] > 0).astype(int) +
+                  (X[:, 2] > 0).astype(int)) % 2).astype(np.int64)
+        datasets.append((f"syn_dt_{i}", X, y))
+
+    # ── RandomForest (10) ─────────────────────────────────────────────────────
+    # Large + many irrelevant features + high noise — bagging helps
+    for i in range(10):
+        X, y = make_classification(
+            n_samples=1500 + i*200, n_features=25 + i*2, n_informative=8,
+            n_redundant=6, n_repeated=3, flip_y=0.12,
+            class_sep=0.7, random_state=400+i)
+        datasets.append((f"syn_rf_{i}", X.astype(np.float32), y))
+
+    # ── ExtraTrees (10) ───────────────────────────────────────────────────────
+    # Very high-dimensional, sparse signal — random splits cover wide space
+    for i in range(10):
+        X, y = make_classification(
+            n_samples=2000 + i*100, n_features=60 + i*5, n_informative=10,
+            n_redundant=20, n_repeated=5, flip_y=0.07,
+            class_sep=0.8, random_state=500+i)
+        datasets.append((f"syn_et_{i}", X.astype(np.float32), y))
+
+    # ── GradientBoosting (10) ─────────────────────────────────────────────────
+    # Multi-cluster non-linear: many clusters per class, moderate noise
+    for i in range(10):
+        X, y = make_classification(
+            n_samples=900 + i*80, n_features=14 + i, n_informative=8,
+            n_redundant=3, n_clusters_per_class=4 + i % 4,
+            flip_y=0.06, class_sep=0.6, random_state=600+i)
+        datasets.append((f"syn_gbm_{i}", X.astype(np.float32), y))
+
+    # ── ANTI-OVERFITTING: datasets targeting the 5 fresh-eval failure modes ───
+    # Sparse binary → LR/NB should win (not KNN/RF)
+    for i in range(8):
+        n = 300 + i * 50
+        X = rng.binomial(1, 0.1 + i*0.02, size=(n, 30 + i*5)).astype(np.float32)
+        y = (X[:, :8].sum(axis=1) > (2 + i % 3)).astype(np.int64)
+        datasets.append((f"syn_sparse_bin_{i}", X, y))
+
+    # High-dim multiclass (10 classes) → RF/SVC should win
+    for i in range(8):
+        X, y = make_classification(
+            n_samples=500 + i*50, n_features=40 + i*5, n_informative=20,
+            n_redundant=8, n_classes=8 + i % 3, n_clusters_per_class=1,
+            random_state=700+i)
+        datasets.append((f"syn_hiclass_{i}", X.astype(np.float32), y))
+
+    # Checkerboard 2D → DT should win (not KNN)
+    for i in range(8):
+        n = 400 + i * 60
+        X = rng.uniform(-3, 3, (n, 2 + i % 3)).astype(np.float32)
+        y = ((np.floor(X[:, 0]) + np.floor(X[:, 1])) % 2).astype(np.int64)
+        datasets.append((f"syn_checker_{i}", X, y))
+
+    # Very large balanced (3000+ samples) → SVC/RF should win (not KNN: too slow)
+    for i in range(6):
+        X, y = make_classification(
+            n_samples=3000 + i*500, n_features=12 + i, n_informative=8,
+            n_redundant=3, flip_y=0.05, random_state=800+i)
+        datasets.append((f"syn_large_{i}", X.astype(np.float32), y))
+
+    print(f"[*] Generated {len(datasets)} synthetic classification datasets")
+    return datasets
+
+
+def generate_synthetic_regression_datasets():
+    """
+    Generate 90 synthetic regression datasets (10 per model × 9 models).
+    Each group is structurally designed so the target model genuinely wins.
+
+    Ridge      : pure linear, near-zero noise, dense informative features
+    Lasso      : high-dim but only 3 features matter (sparse signal)
+    ElasticNet : many correlated + sparse features (effective_rank << n_features)
+    SVR        : smooth non-linear functions (sinusoidal, polynomial)
+    KNN        : high-frequency local patterns, local averaging wins
+    DT         : pure step / piecewise-constant functions
+    RF         : large + noisy + non-linear (many irrelevant features)
+    ET         : very high-dimensional, random non-linear
+    GBM        : complex interaction terms (x1*x2, x^2, sin*x)
+    """
+    datasets = []
+    rng = np.random.RandomState(42)
+
+    # ── Ridge (10) ────────────────────────────────────────────────────────────
+    # Pure linear relationship, almost zero noise — Ridge should be near-perfect
+    for i in range(10):
+        X, y = make_regression(
+            n_samples=400 + i*50, n_features=5 + i, n_informative=5 + i,
+            noise=0.05, coef=False, random_state=i)
+        datasets.append((f"syn_ridge_{i}", X.astype(np.float32), y.astype(np.float32)))
+
+    # ── Lasso (10) ────────────────────────────────────────────────────────────
+    # High-dimensional but only 3 features carry signal — L1 zeroes out the rest
+    for i in range(10):
+        n_feat = 40 + i * 5     # 40–85 features, only 3 informative
+        X, y = make_regression(
+            n_samples=350, n_features=n_feat, n_informative=3,
+            noise=0.3, coef=False, random_state=100+i)
+        datasets.append((f"syn_lasso_{i}", X.astype(np.float32), y.astype(np.float32)))
+
+    # ── ElasticNet (10) ───────────────────────────────────────────────────────
+    # Correlated features + sparse signal — neither pure L1 nor L2 alone wins
+    for i in range(10):
+        X, y = make_regression(
+            n_samples=400, n_features=30, n_informative=5,
+            noise=1.0, effective_rank=8, tail_strength=0.6, random_state=200+i)
+        datasets.append((f"syn_en_{i}", X.astype(np.float32), y.astype(np.float32)))
+
+    # ── SVR (10) ──────────────────────────────────────────────────────────────
+    # Smooth non-linear: sinusoidal + polynomial — RBF kernel captures this
+    for i in range(5):
+        n = 400 + i * 60
+        X = rng.uniform(-3, 3, size=(n, 2 + i)).astype(np.float32)
+        y = (np.sin(X[:, 0] * (1 + i * 0.4)) * np.cos(X[:, 1]) +
+             rng.randn(n) * 0.08).astype(np.float32)
+        datasets.append((f"syn_svr_sin_{i}", X, y))
+    for i in range(5):
+        n = 400 + i * 60
+        X = rng.uniform(-2, 2, size=(n, 3)).astype(np.float32)
+        y = (X[:, 0]**2 + X[:, 1]**2 - X[:, 2]**2 +
+             rng.randn(n) * 0.08).astype(np.float32)
+        datasets.append((f"syn_svr_poly_{i}", X, y))
+
+    # ── KNN (10) ──────────────────────────────────────────────────────────────
+    # High-frequency local pattern — local averaging beats any global model
+    for i in range(10):
+        n = 350 + i * 40
+        nf = 2 + (i % 3)
+        X = rng.uniform(0, 1, size=(n, nf)).astype(np.float32)
+        # y = high-freq sinusoid in input space → only nearby points predict well
+        y = (np.sin(X[:, 0] * 12) * np.cos(X[:, 1] * 12) +
+             rng.randn(n) * 0.04).astype(np.float32)
+        datasets.append((f"syn_knn_{i}", X, y))
+
+    # ── DecisionTree (10) ─────────────────────────────────────────────────────
+    # Pure step / piecewise-constant targets — trees split exactly on boundaries
+    for i in range(10):
+        n = 400 + i * 60
+        X = rng.randn(n, 4 + i % 3).astype(np.float32)
+        y = np.zeros(n, dtype=np.float32)
+        for j in range(4):
+            y += (X[:, j % X.shape[1]] > (j * 0.4 - 0.6)).astype(np.float32) * (j+1) * 3.0
+        y += rng.randn(n).astype(np.float32) * 0.1
+        datasets.append((f"syn_dt_{i}", X, y))
+
+    # ── RandomForest (10) ─────────────────────────────────────────────────────
+    # Large + high noise + non-linear + many irrelevant features
+    for i in range(10):
+        n = 1500 + i * 200
+        nf = 25 + i * 2
+        X, y = make_regression(
+            n_samples=n, n_features=nf, n_informative=8,
+            noise=5.0 + i, coef=False, random_state=400+i)
+        # add non-linearity
+        y = y + (X[:, 0] * X[:, 1]).astype(np.float32) * 0.5
+        datasets.append((f"syn_rf_{i}", X.astype(np.float32), y.astype(np.float32)))
+
+    # ── ExtraTrees (10) ───────────────────────────────────────────────────────
+    # Very high-dimensional non-linear — random extreme splits generalise well
+    for i in range(10):
+        n = 2000 + i * 100
+        nf = 60 + i * 5
+        X = rng.randn(n, nf).astype(np.float32)
+        # signal only from first 10 features, non-linear
+        y = (np.sin(X[:, 0]) * X[:, 1] + X[:, 2]**2 - X[:, 3] * X[:, 4] +
+             rng.randn(n) * 0.5).astype(np.float32)
+        datasets.append((f"syn_et_{i}", X, y))
+
+    # ── GBM (10) ──────────────────────────────────────────────────────────────
+    # Complex interaction terms: x1*x2, x^2, sin(x)*x — boosting fits residuals
+    for i in range(10):
+        n = 800 + i * 100
+        X = rng.randn(n, 10 + i).astype(np.float32)
+        y = (X[:, 0] * X[:, 1] +
+             X[:, 2]**2 - X[:, 3]**2 +
+             np.sin(X[:, 4]) * X[:, 5] +
+             rng.randn(n) * 0.5).astype(np.float32)
+        datasets.append((f"syn_gbm_{i}", X, y))
+
+    # ── ANTI-OVERFITTING: datasets targeting regression failure modes ──────────
+    # Exponential / log (nonlinear but smooth) → SVR/ET should win over Ridge
+    for i in range(8):
+        n = 500 + i * 60
+        X = rng.uniform(0.1, 3, (n, 2 + i % 3)).astype(np.float32)
+        y = (np.exp(X[:, 0]) - np.exp(X[:, 1]) + rng.randn(n) * 0.2).astype(np.float32)
+        datasets.append((f"syn_exp_{i}", X, y))
+
+    # Strongly correlated blocks → Ridge wins (ET should NOT win here)
+    for i in range(8):
+        X, y = make_regression(
+            n_samples=400 + i*50, n_features=20, n_informative=6,
+            noise=0.5, effective_rank=4, tail_strength=0.9, random_state=500+i)
+        datasets.append((f"syn_corr_{i}", X.astype(np.float32), y.astype(np.float32)))
+
+    # Radial / distance-based (ET/RF should win — not Ridge)
+    for i in range(6):
+        n = 500 + i * 80
+        X = rng.randn(n, 4 + i).astype(np.float32)
+        y = (np.sqrt((X ** 2).sum(axis=1)) + rng.randn(n) * 0.15).astype(np.float32)
+        datasets.append((f"syn_radial_{i}", X, y))
+
+    print(f"[*] Generated {len(datasets)} synthetic regression datasets")
+    return datasets
+
+
 def load_classification_datasets():
-    """Load 500 real-world classification datasets from OpenML."""
+    """Load OpenML + synthetic classification datasets."""
     print("[*] Loading classification datasets from OpenML...")
-    return load_openml_datasets('classification', max_datasets=500)
+    openml_ds   = load_openml_datasets('classification', max_datasets=500)
+    synthetic_ds = generate_synthetic_classification_datasets()
+    combined = openml_ds + synthetic_ds
+    print(f"[OK] Total: {len(combined)} datasets "
+          f"({len(openml_ds)} OpenML + {len(synthetic_ds)} synthetic)")
+    return combined
 
 
 def load_regression_datasets():
-    """Load 500 real-world regression datasets from OpenML."""
+    """Load OpenML + synthetic regression datasets."""
     print("[*] Loading regression datasets from OpenML...")
-    return load_openml_datasets('regression', max_datasets=500)
+    openml_ds    = load_openml_datasets('regression', max_datasets=500)
+    synthetic_ds = generate_synthetic_regression_datasets()
+    combined = openml_ds + synthetic_ds
+    print(f"[OK] Total: {len(combined)} datasets "
+          f"({len(openml_ds)} OpenML + {len(synthetic_ds)} synthetic)")
+    return combined
 
 
 # =============================================================================
@@ -229,7 +519,7 @@ def load_regression_datasets():
 # =============================================================================
 def extract_meta_features(X, y, task_type='classification'):
     """
-    Compute all 32 meta-features from the dataset.
+    Compute all 40 meta-features from the dataset.
 
     Group breakdown
     ---------------
@@ -240,6 +530,8 @@ def extract_meta_features(X, y, task_type='classification'):
     Target      (3)  : properties of the target variable
     PCA         (3)  : intrinsic dimensionality via PCA
     Landmarks   (4)  : quick 3-fold CV scores with simple models
+    Signal      (8)  : sparsity, linear signal strength, nonlinearity, class count
+                       [NEW — reduces overfitting on unseen dataset types]
 
     All values are normalised to [0, 1] to match the observation space.
     """
@@ -400,25 +692,74 @@ def extract_meta_features(X, y, task_type='classification'):
     if task_type == 'classification':
         sc = 'accuracy'
         # 29. Decision-tree landmark
-        features.append(_lm(DecisionTreeClassifier(max_depth=3, random_state=42), sc))
+        lm_dt  = _lm(DecisionTreeClassifier(max_depth=3, random_state=42), sc)
         # 30. Naive Bayes landmark
-        features.append(_lm(GaussianNB(), sc))
+        lm_nb  = _lm(GaussianNB(), sc)
         # 31. Logistic Regression landmark
-        features.append(_lm(LogisticRegression(max_iter=200, random_state=42), sc))
+        lm_lr  = _lm(LogisticRegression(max_iter=200, random_state=42), sc)
         # 32. KNN landmark
-        features.append(_lm(KNeighborsClassifier(n_neighbors=3), sc))
+        lm_knn = _lm(KNeighborsClassifier(n_neighbors=3), sc)
+        features.extend([lm_dt, lm_nb, lm_lr, lm_knn])
     else:
         sc = 'r2'
         # 29. Decision-tree landmark (shallow)
-        features.append(_lm(DecisionTreeRegressor(max_depth=3, random_state=42), sc))
+        lm_dt  = _lm(DecisionTreeRegressor(max_depth=3, random_state=42), sc)
         # 30. Ridge landmark
-        features.append(_lm(Ridge(alpha=1.0), sc))
+        lm_lr  = _lm(Ridge(alpha=1.0), sc)
         # 31. KNN landmark
-        features.append(_lm(KNeighborsRegressor(n_neighbors=3), sc))
+        lm_knn = _lm(KNeighborsRegressor(n_neighbors=3), sc)
         # 32. Decision-tree landmark (deeper)
-        features.append(_lm(DecisionTreeRegressor(max_depth=5, random_state=42), sc))
+        lm_dt2 = _lm(DecisionTreeRegressor(max_depth=5, random_state=42), sc)
+        lm_nb  = lm_dt2   # alias for unified logic below
+        features.extend([lm_dt, lm_lr, lm_knn, lm_dt2])
 
-    assert len(features) == 32, f"Feature count error: got {len(features)}, expected 32"
+    # -- SIGNAL (8 NEW features — reduces overfitting on unseen dataset types) --
+
+    # 33. Sparsity ratio: fraction of values near zero (|x| < 0.05 of feature range)
+    #     High value → sparse binary / text-like data → LR/NB often best
+    col_ranges = np.ptp(Xs, axis=0) + 1e-10
+    near_zero  = np.abs(Xs) < (0.05 * col_ranges)
+    features.append(float(np.mean(near_zero)))
+
+    # 34. Mean |feature-target Pearson correlation| (linear signal strength)
+    #     High → data is mostly linear → Ridge/LR should win
+    y_arr2 = np.asarray(y, dtype=float)
+    y_std  = float(np.std(y_arr2)) + 1e-10
+    Xs_std = np.std(Xs, axis=0) + 1e-10
+    ftcorr = np.abs(np.dot((Xs - Xs.mean(0)).T, y_arr2 - y_arr2.mean()) /
+                    (n_samples * Xs_std * y_std))
+    features.append(float(np.clip(np.mean(ftcorr), 0.0, 1.0)))
+
+    # 35. Max |feature-target correlation| (best single linear predictor)
+    features.append(float(np.clip(np.max(ftcorr), 0.0, 1.0)))
+
+    # 36. Std of feature-target correlations (sparse vs uniform signal)
+    #     High → only a few features matter → Lasso/DT should win
+    features.append(float(np.clip(np.std(ftcorr) * 5.0, 0.0, 1.0)))
+
+    # 37. Nonlinearity gap: DT_landmark - LR_landmark (clipped to [-1, 1] → [0, 1])
+    #     Positive → nonlinear structure → trees/SVC should win
+    #     Negative → linear → LR/Ridge should win
+    nl_gap = float(np.clip((lm_dt - lm_lr + 1.0) / 2.0, 0.0, 1.0))
+    features.append(nl_gap)
+
+    # 38. Explicit class count (classification) or 0 (regression)
+    #     normalised by 20 — high value signals multiclass → RF/GBM may help
+    n_classes_raw = len(np.unique(y)) if task_type == 'classification' else 1
+    features.append(float(min(n_classes_raw / 20.0, 1.0)))
+
+    # 39. KNN consistency score: how well KNN landmark predicts vs linear
+    #     High → tight local clusters → KNN/DT should win
+    knn_advantage = float(np.clip((lm_knn - lm_lr + 1.0) / 2.0, 0.0, 1.0))
+    features.append(knn_advantage)
+
+    # 40. Feature density: fraction of features with std > 0.1 * max_std
+    #     Low → many dead/constant features → sparse model (Lasso) may win
+    max_std = float(np.max(Xs_std)) + 1e-10
+    active_feats = float(np.mean(Xs_std > 0.1 * max_std))
+    features.append(active_feats)
+
+    assert len(features) == 40, f"Feature count error: got {len(features)}, expected 40"
     arr = np.array(features, dtype=np.float32)
     # Sanitize: replace any NaN/inf that would poison the PPO network
     arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=0.0)
@@ -484,7 +825,7 @@ if HAS_SB3:
             self.last_info    = {}
 
             self.action_space      = Discrete(len(models))
-            self.observation_space = Box(low=0.0, high=1.0, shape=(32,), dtype=np.float32)
+            self.observation_space = Box(low=0.0, high=1.0, shape=(40,), dtype=np.float32)
 
             # Pre-compute and cache meta-features + full per-dataset score arrays
             print(f"[*] Pre-computing meta-features for {len(datasets)} datasets...")
@@ -515,16 +856,16 @@ if HAS_SB3:
 
         # -- step: evaluate selected model -> reward = score (low error = high reward)
         def step(self, action):
-            name, X, y  = self._current
-            model_name   = self.model_names[int(action)]
-            model        = self.models[model_name]
+            name, _, _   = self._current
+            action_idx   = int(action)
+            model_name   = self.model_names[action_idx]
 
             # Rank-based reward: best model=1.0, worst model=0.0, others in between.
             # e.g. 8 models: rank 1st->1.0, 2nd->0.857, ..., 8th->0.0
             # This penalises picking 2nd-best clearly, unlike score/best_score.
-            score     = evaluate_model(model, X, y, self.task_type)
-            all_scores = self._score_cache.get(self._idx, [score])
-            action_idx = int(action)
+            # Use cached score directly — no need to re-evaluate the same dataset.
+            all_scores = self._score_cache.get(self._idx, [0.5] * len(self.models))
+            score      = all_scores[action_idx]
             sorted_scores = sorted(all_scores, reverse=True)
             rank   = sorted_scores.index(all_scores[action_idx])  # 0=best
             n      = max(len(all_scores) - 1, 1)
@@ -540,7 +881,7 @@ if HAS_SB3:
             }
 
             # gymnasium API: (obs, reward, terminated, truncated, info)
-            next_obs   = np.zeros(32, dtype=np.float32)
+            next_obs   = np.zeros(40, dtype=np.float32)
             terminated = True       # each episode = one decision
             truncated  = False
             return next_obs, float(reward), terminated, truncated, self.last_info
@@ -627,15 +968,17 @@ def train_rl_model(task_type='classification', total_timesteps=50_000):
     ppo = PPO(
         'MlpPolicy', env,
         verbose=0,
-        learning_rate=1e-4,      # lower LR prevents NaN explosion
+        learning_rate=3e-4,
         n_steps=512,
         batch_size=64,
         n_epochs=10,
         gamma=0.99,
-        max_grad_norm=0.5,       # gradient clipping prevents NaN
+        max_grad_norm=0.5,
         normalize_advantage=True,
-        ent_coef=0.2,            # entropy bonus forces exploration (prevents RF-always collapse)
-        device='cpu',            # MLP policy is faster on CPU
+        ent_coef=0.3,            # high entropy → forces diverse model selection
+        vf_coef=0.5,
+        policy_kwargs=dict(net_arch=[256, 256, 128]),   # deeper network for 32 meta-features
+        device='cpu',
     )
 
     # --------------------------------------------------------------------------
