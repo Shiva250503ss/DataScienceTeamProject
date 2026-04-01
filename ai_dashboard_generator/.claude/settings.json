@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(find \"c:/Users/shiva/Downloads/ai_dashboard_generator/ai_dashboard_generator\" -name \"*.pyc\" -delete)",
+      "Bash(find \"c:/Users/shiva/Downloads/ai_dashboard_generator/ai_dashboard_generator\" -name \"__pycache__\" -type d -exec rm -rf {} +)"
+    ]
+  }
+}
