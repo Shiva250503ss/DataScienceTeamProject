@@ -1,0 +1,41 @@
+deal_id,created_date,close_date,sales_rep,region,industry,company_size,lead_source,deal_stage,product_tier,deal_value,deal_probability,num_contacts,days_in_pipeline,won
+D001,2024-01-05,2024-03-10,James Carter,Northeast,Healthcare,Enterprise,Inbound,Closed Won,Enterprise,85000,100,4,64,Yes
+D002,2024-01-08,,Maria Silva,West,Technology,Mid-Market,Outbound,Proposal,Professional,32000,60,3,,No
+D003,2024-01-10,2024-02-15,Kevin Park,Southeast,Finance,SMB,Referral,Closed Won,Starter,12000,100,2,36,Yes
+D004,2024-01-12,,Anna Thompson,Central,Retail,Enterprise,Inbound,Discovery,Enterprise,120000,30,5,,No
+D005,2024-01-15,2024-04-02,James Carter,Northeast,Technology,Enterprise,Event,Closed Won,Enterprise,200000,100,7,77,Yes
+D006,2024-01-17,,Maria Silva,West,Healthcare,Mid-Market,Outbound,Negotiation,Professional,45000,80,4,,No
+D007,2024-01-20,2024-02-28,Kevin Park,Southeast,Education,SMB,Referral,Closed Lost,Starter,8000,0,2,39,No
+D008,2024-01-22,,Anna Thompson,Central,Finance,Enterprise,Inbound,Proposal,Enterprise,95000,55,6,,No
+D009,2024-01-25,2024-03-30,James Carter,Northeast,Retail,Mid-Market,Cold Call,Closed Won,Professional,38000,100,3,64,Yes
+D010,2024-01-28,,Maria Silva,West,Technology,Enterprise,Inbound,Discovery,Enterprise,175000,25,8,,No
+D011,2024-02-01,2024-02-20,Kevin Park,Southeast,Healthcare,SMB,Referral,Closed Won,Starter,9500,100,1,19,Yes
+D012,2024-02-03,,Anna Thompson,Central,Education,Mid-Market,Event,Qualification,Professional,28000,40,3,,No
+D013,2024-02-06,2024-04-15,James Carter,Northeast,Finance,Enterprise,Inbound,Closed Won,Enterprise,142000,100,5,68,Yes
+D014,2024-02-08,,Maria Silva,West,Retail,SMB,Cold Call,Discovery,Starter,11000,20,2,,No
+D015,2024-02-10,2024-03-01,Kevin Park,Southeast,Technology,Mid-Market,Outbound,Closed Won,Professional,52000,100,4,20,Yes
+D016,2024-02-13,,Anna Thompson,Central,Healthcare,Enterprise,Inbound,Proposal,Enterprise,210000,65,9,,No
+D017,2024-02-15,2024-02-15,James Carter,Northeast,Education,SMB,Referral,Closed Lost,Starter,7500,0,2,0,No
+D018,2024-02-18,,Maria Silva,West,Finance,Mid-Market,Event,Negotiation,Professional,41000,85,4,,No
+D019,2024-02-20,2024-04-30,Kevin Park,Southeast,Retail,Enterprise,Inbound,Closed Won,Enterprise,88000,100,6,69,Yes
+D020,2024-02-23,,Anna Thompson,Central,Technology,SMB,Cold Call,Qualification,Starter,14000,35,2,,No
+D021,2024-02-25,2024-03-20,James Carter,Northeast,Healthcare,Mid-Market,Referral,Closed Won,Professional,36000,100,3,24,Yes
+D022,2024-02-28,,Maria Silva,West,Education,Enterprise,Outbound,Proposal,Enterprise,165000,50,7,,No
+D023,2024-03-02,2024-04-05,Kevin Park,Southeast,Finance,SMB,Inbound,Closed Won,Starter,10500,100,2,34,Yes
+D024,2024-03-05,,Anna Thompson,Central,Retail,Mid-Market,Event,Discovery,Professional,33000,30,4,,No
+D025,2024-03-08,2024-03-08,James Carter,Northeast,Technology,Enterprise,Inbound,Closed Lost,Enterprise,250000,0,8,0,No
+D026,2024-03-10,,Maria Silva,West,Healthcare,SMB,Cold Call,Qualification,Starter,13000,25,2,,No
+D027,2024-03-13,2024-05-01,Kevin Park,Southeast,Education,Mid-Market,Referral,Closed Won,Professional,29000,100,3,49,Yes
+D028,2024-03-15,,Anna Thompson,Central,Finance,Enterprise,Inbound,Negotiation,Enterprise,185000,75,6,,No
+D029,2024-03-18,2024-04-10,James Carter,Northeast,Retail,SMB,Outbound,Closed Won,Starter,11500,100,2,23,Yes
+D030,2024-03-20,,Maria Silva,West,Technology,Mid-Market,Event,Proposal,Professional,47000,60,5,,No
+D031,2024-03-22,2024-05-15,Kevin Park,Southeast,Healthcare,Enterprise,Inbound,Closed Won,Enterprise,115000,100,7,54,Yes
+D032,2024-03-25,,Anna Thompson,Central,Education,SMB,Cold Call,Discovery,Starter,9000,20,2,,No
+D033,2024-03-28,2024-04-28,James Carter,Northeast,Finance,Mid-Market,Referral,Closed Won,Professional,43000,100,4,31,Yes
+D034,2024-04-01,,Maria Silva,West,Retail,Enterprise,Inbound,Proposal,Enterprise,132000,55,6,,No
+D035,2024-04-03,2024-04-03,Kevin Park,Southeast,Technology,SMB,Outbound,Closed Lost,Starter,8500,0,1,0,No
+D036,2024-04-06,,Anna Thompson,Central,Healthcare,Mid-Market,Event,Qualification,Professional,35000,40,3,,No
+D037,2024-04-08,2024-05-30,James Carter,Northeast,Education,Enterprise,Inbound,Closed Won,Enterprise,95000,100,5,52,Yes
+D038,2024-04-10,,Maria Silva,West,Finance,SMB,Cold Call,Discovery,Starter,12500,25,2,,No
+D039,2024-04-13,2024-05-20,Kevin Park,Southeast,Retail,Mid-Market,Referral,Closed Won,Professional,31000,100,3,37,Yes
+D040,2024-04-15,,Anna Thompson,Central,Technology,Enterprise,Inbound,Negotiation,Enterprise,220000,80,8,,No

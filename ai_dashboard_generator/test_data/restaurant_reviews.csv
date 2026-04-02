@@ -1,0 +1,41 @@
+review_id,review_date,restaurant_name,cuisine_type,city,price_range,day_of_week,meal_type,delivery_method,rating,food_quality,service_speed,num_reviews_total,avg_order_value,tips_pct
+R001,2024-01-05,The Spice Garden,Indian,New York,$$,Saturday,Dinner,Dine-in,5,Excellent,Fast,1240,38.50,18
+R002,2024-01-06,Pizza Palace,Italian,Chicago,$$,Sunday,Lunch,Delivery,4,Good,Moderate,876,27.90,15
+R003,2024-01-07,Dragon Wok,Chinese,Los Angeles,$,Monday,Lunch,Takeout,3,Average,Slow,423,19.20,10
+R004,2024-01-09,Burger Barn,American,$,Wednesday,Dinner,Delivery,2,Poor,Fast,312,22.00,8
+R005,2024-01-10,Taco Fiesta,Mexican,$,Thursday,Lunch,Takeout,5,Excellent,Fast,2105,18.75,12
+R006,2024-01-12,Sushi Zen,Japanese,$$$,Friday,Dinner,Dine-in,5,Excellent,Moderate,987,65.00,20
+R007,2024-01-13,Mediterranean Breeze,Mediterranean,$$,Saturday,Brunch,Dine-in,4,Good,Fast,654,42.00,17
+R008,2024-01-14,The BBQ Pit,American,$$,Sunday,Dinner,Dine-in,4,Good,Slow,789,45.50,15
+R009,2024-01-16,Green Bowl,Vegan,$,Tuesday,Lunch,Delivery,5,Excellent,Fast,1567,24.00,14
+R010,2024-01-18,French Bistro,French,$$$,Thursday,Dinner,Dine-in,3,Average,Moderate,234,78.00,22
+R011,2024-01-19,Seoul Kitchen,Korean,$$,Friday,Lunch,Takeout,4,Good,Fast,892,31.50,16
+R012,2024-01-20,The Steak House,American,$$$$,Saturday,Dinner,Dine-in,5,Excellent,Moderate,445,95.00,25
+R013,2024-01-21,Thai Orchid,Thai,$$,Sunday,Dinner,Delivery,4,Good,Fast,1123,35.00,15
+R014,2024-01-23,Little Italy,Italian,$$$,Tuesday,Dinner,Dine-in,5,Excellent,Slow,678,58.00,18
+R015,2024-01-25,Dim Sum House,Chinese,$$,Thursday,Brunch,Dine-in,4,Good,Moderate,2340,29.50,14
+R016,2024-01-26,Curry Corner,Indian,$,Friday,Lunch,Delivery,3,Average,Fast,567,21.00,11
+R017,2024-01-27,El Rancho,Mexican,$$,Saturday,Dinner,Dine-in,5,Excellent,Fast,1890,33.00,16
+R018,2024-01-28,Pho Saigon,Vietnamese,$,Sunday,Lunch,Takeout,4,Good,Fast,3421,22.50,12
+R019,2024-01-30,The Sandwich Shop,American,$,Tuesday,Lunch,Delivery,3,Average,Moderate,234,15.00,8
+R020,2024-02-01,Seafood Harbor,Seafood,$$$,Friday,Dinner,Dine-in,5,Excellent,Moderate,567,72.00,21
+R021,2024-02-02,Ramen House,Japanese,$$,Saturday,Lunch,Dine-in,5,Excellent,Fast,1234,28.00,17
+R022,2024-02-03,Casa Grande,Mexican,$$$,Sunday,Dinner,Dine-in,4,Good,Moderate,345,54.00,18
+R023,2024-02-05,The Diner,American,$,Tuesday,Breakfast,Dine-in,3,Average,Fast,876,16.50,12
+R024,2024-02-07,Golden Dragon,Chinese,$$,Thursday,Dinner,Delivery,4,Good,Slow,678,32.00,13
+R025,2024-02-08,Spice Route,Indian,$$$,Friday,Dinner,Dine-in,5,Excellent,Moderate,432,61.00,19
+R026,2024-02-09,Bella Pasta,Italian,$$,Saturday,Lunch,Dine-in,4,Good,Fast,987,37.00,16
+R027,2024-02-10,Sunrise Brunch,American,$$,Sunday,Brunch,Dine-in,5,Excellent,Moderate,1567,41.00,18
+R028,2024-02-12,Wok & Roll,Chinese,$,Tuesday,Lunch,Takeout,3,Average,Fast,345,18.00,9
+R029,2024-02-14,Le Petit Cafe,French,$$,Thursday,Lunch,Dine-in,4,Good,Moderate,678,44.00,17
+R030,2024-02-15,Nacho Libre,Mexican,$,Friday,Lunch,Takeout,4,Good,Fast,1234,17.50,11
+R031,2024-02-16,The Greek Place,Mediterranean,$$,Saturday,Dinner,Dine-in,5,Excellent,Fast,876,48.00,19
+R032,2024-02-17,Noodle Bar,Vietnamese,$,Sunday,Lunch,Delivery,4,Good,Fast,2109,20.50,13
+R033,2024-02-19,Chopstix,Asian Fusion,$$,Tuesday,Dinner,Takeout,3,Average,Moderate,456,36.00,14
+R034,2024-02-21,The Grill,American,$$$,Thursday,Dinner,Dine-in,5,Excellent,Moderate,789,68.00,20
+R035,2024-02-22,Bombay Kitchen,Indian,$$,Friday,Dinner,Delivery,4,Good,Fast,1023,33.50,15
+R036,2024-02-23,Pizzeria Roma,Italian,$$,Saturday,Dinner,Dine-in,5,Excellent,Fast,2345,39.00,17
+R037,2024-02-24,Pad Thai Place,Thai,$,Sunday,Lunch,Takeout,3,Average,Fast,678,20.00,10
+R038,2024-02-26,The Veggie Bowl,Vegan,$$,Tuesday,Lunch,Delivery,5,Excellent,Moderate,1234,26.00,14
+R039,2024-02-28,Izakaya Tokyo,Japanese,$$$,Thursday,Dinner,Dine-in,4,Good,Slow,456,72.00,21
+R040,2024-03-01,Tex-Mex Express,Mexican,$,Friday,Lunch,Takeout,4,Good,Fast,3210,19.00,12

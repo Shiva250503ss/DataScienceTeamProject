@@ -1,0 +1,41 @@
+ticket_id,created_date,resolved_date,channel,category,priority,product,customer_tier,region,agent_name,status,response_time_hrs,resolution_time_hrs,satisfaction_score,escalated
+TKT-001,2024-01-02,2024-01-02,Email,Billing,High,Pro Plan,Gold,North America,Sarah Adams,Resolved,0.5,4.2,5,No
+TKT-002,2024-01-03,,Chat,Technical,Critical,Enterprise,Platinum,Europe,Mike Chen,Open,1.2,,, Yes
+TKT-003,2024-01-03,2024-01-05,Phone,Account Access,Medium,Starter,Silver,Asia Pacific,Laura Jones,Resolved,0.8,48.5,4,No
+TKT-004,2024-01-04,2024-01-04,Email,Billing,Low,Pro Plan,Bronze,North America,Sarah Adams,Resolved,2.1,3.7,3,No
+TKT-005,2024-01-05,2024-01-08,Chat,Feature Request,Low,Enterprise,Platinum,Europe,Tom Wilson,Closed,4.5,72.0,4,No
+TKT-006,2024-01-06,,Email,Technical,High,Pro Plan,Gold,North America,Mike Chen,In Progress,1.0,,, No
+TKT-007,2024-01-07,2024-01-07,Chat,Billing,Medium,Starter,Bronze,Asia Pacific,Laura Jones,Resolved,0.3,5.1,5,No
+TKT-008,2024-01-08,2024-01-09,Phone,Technical,Critical,Enterprise,Platinum,Latin America,Sarah Adams,Resolved,0.1,18.3,2,Yes
+TKT-009,2024-01-09,2024-01-10,Email,Account Access,Low,Pro Plan,Silver,North America,Tom Wilson,Resolved,3.2,24.0,4,No
+TKT-010,2024-01-10,2024-01-10,Chat,Billing,High,Starter,Gold,Europe,Mike Chen,Resolved,0.4,2.9,5,No
+TKT-011,2024-01-11,2024-01-14,Email,Technical,Critical,Enterprise,Platinum,North America,Sarah Adams,Resolved,0.2,72.0,1,Yes
+TKT-012,2024-01-12,2024-01-12,Phone,Feature Request,Low,Pro Plan,Bronze,Asia Pacific,Laura Jones,Resolved,5.0,8.0,4,No
+TKT-013,2024-01-13,2024-01-15,Chat,Billing,Medium,Enterprise,Gold,Europe,Tom Wilson,Resolved,1.1,48.0,3,No
+TKT-014,2024-01-14,2024-01-14,Email,Account Access,High,Starter,Silver,Latin America,Mike Chen,Resolved,0.6,6.5,5,No
+TKT-015,2024-01-15,,Phone,Technical,Critical,Enterprise,Platinum,North America,Sarah Adams,Escalated,0.3,,,Yes
+TKT-016,2024-01-16,2024-01-16,Chat,Billing,Low,Pro Plan,Bronze,Europe,Laura Jones,Resolved,2.8,4.1,4,No
+TKT-017,2024-01-17,2024-01-18,Email,Feature Request,Medium,Enterprise,Gold,Asia Pacific,Tom Wilson,Resolved,1.5,30.0,4,No
+TKT-018,2024-01-18,2024-01-18,Chat,Technical,High,Pro Plan,Platinum,North America,Mike Chen,Resolved,0.4,7.2,5,No
+TKT-019,2024-01-19,2024-01-21,Email,Account Access,Low,Starter,Bronze,Latin America,Sarah Adams,Resolved,4.0,48.0,3,No
+TKT-020,2024-01-20,2024-01-20,Phone,Billing,High,Enterprise,Gold,Europe,Laura Jones,Resolved,0.2,3.0,5,No
+TKT-021,2024-01-21,,Chat,Technical,Critical,Enterprise,Platinum,North America,Tom Wilson,Open,0.5,,,Yes
+TKT-022,2024-01-22,2024-01-23,Email,Billing,Medium,Pro Plan,Silver,Asia Pacific,Mike Chen,Resolved,1.8,22.0,4,No
+TKT-023,2024-01-23,2024-01-23,Chat,Feature Request,Low,Starter,Bronze,Europe,Sarah Adams,Resolved,6.0,9.0,3,No
+TKT-024,2024-01-24,2024-01-25,Phone,Technical,High,Enterprise,Platinum,Latin America,Laura Jones,Resolved,0.3,28.0,2,Yes
+TKT-025,2024-01-25,2024-01-25,Email,Account Access,Medium,Pro Plan,Gold,North America,Tom Wilson,Resolved,2.0,5.5,5,No
+TKT-026,2024-01-26,2024-01-26,Chat,Billing,Low,Starter,Bronze,Europe,Mike Chen,Resolved,3.1,4.8,4,No
+TKT-027,2024-01-27,2024-01-30,Email,Technical,Critical,Enterprise,Platinum,Asia Pacific,Sarah Adams,Resolved,0.2,68.0,1,Yes
+TKT-028,2024-01-28,2024-01-28,Phone,Feature Request,Low,Pro Plan,Silver,North America,Laura Jones,Resolved,4.2,6.0,4,No
+TKT-029,2024-01-29,2024-01-31,Chat,Billing,High,Enterprise,Gold,Latin America,Tom Wilson,Resolved,0.8,48.0,3,No
+TKT-030,2024-01-30,2024-01-30,Email,Account Access,Medium,Starter,Bronze,Europe,Mike Chen,Resolved,1.4,7.0,5,No
+TKT-031,2024-02-01,2024-02-01,Chat,Technical,High,Pro Plan,Platinum,North America,Sarah Adams,Resolved,0.5,5.0,5,No
+TKT-032,2024-02-02,,Phone,Billing,Critical,Enterprise,Gold,Asia Pacific,Laura Jones,Escalated,0.1,,,Yes
+TKT-033,2024-02-03,2024-02-04,Email,Feature Request,Low,Starter,Bronze,Europe,Tom Wilson,Resolved,5.5,30.0,4,No
+TKT-034,2024-02-04,2024-02-04,Chat,Account Access,Medium,Pro Plan,Silver,North America,Mike Chen,Resolved,1.0,8.0,4,No
+TKT-035,2024-02-05,2024-02-07,Email,Technical,High,Enterprise,Platinum,Latin America,Sarah Adams,Resolved,0.4,44.0,2,Yes
+TKT-036,2024-02-06,2024-02-06,Phone,Billing,Low,Starter,Bronze,Europe,Laura Jones,Resolved,2.5,3.5,5,No
+TKT-037,2024-02-07,2024-02-09,Chat,Technical,Critical,Enterprise,Gold,North America,Tom Wilson,Resolved,0.3,56.0,3,Yes
+TKT-038,2024-02-08,2024-02-08,Email,Account Access,Low,Pro Plan,Silver,Asia Pacific,Mike Chen,Resolved,3.8,6.5,4,No
+TKT-039,2024-02-09,2024-02-10,Phone,Billing,High,Enterprise,Platinum,Europe,Sarah Adams,Resolved,0.6,18.0,5,No
+TKT-040,2024-02-10,,Chat,Technical,Critical,Enterprise,Platinum,North America,Laura Jones,Open,0.2,,,Yes

@@ -1,0 +1,41 @@
+employee_id,hire_date,department,job_title,employment_type,gender,age,city,education_level,years_experience,monthly_salary,performance_rating,attrition
+E001,2018-03-15,Engineering,Software Engineer,Full-Time,Male,29,Austin,Bachelor's,5,7800,Excellent,No
+E002,2019-07-22,Marketing,Marketing Analyst,Full-Time,Female,34,New York,Master's,8,6200,Good,No
+E003,2020-01-10,HR,HR Coordinator,Part-Time,Female,27,Chicago,Bachelor's,3,3100,Average,Yes
+E004,2017-11-05,Finance,Financial Analyst,Full-Time,Male,38,Dallas,Master's,12,8500,Good,No
+E005,2021-06-01,Engineering,Data Scientist,Full-Time,Female,31,Seattle,PhD,6,9500,Excellent,No
+E006,2016-09-18,Sales,Sales Manager,Full-Time,Male,45,Miami,Bachelor's,20,10200,Excellent,No
+E007,2022-02-14,Engineering,Junior Developer,Full-Time,Male,24,Austin,Bachelor's,1,5200,Average,Yes
+E008,2019-04-30,Marketing,Content Strategist,Contract,Female,29,Boston,Bachelor's,5,4800,Good,No
+E009,2018-08-20,Finance,Accountant,Full-Time,Female,35,Dallas,Bachelor's,10,6900,Good,No
+E010,2020-10-12,HR,Talent Acquisition,Full-Time,Male,30,Chicago,Master's,6,5800,Excellent,No
+E011,2015-05-07,Engineering,Senior Engineer,Full-Time,Male,42,San Francisco,Master's,18,12500,Excellent,No
+E012,2021-09-01,Sales,Account Executive,Full-Time,Female,28,Miami,Bachelor's,4,7100,Good,No
+E013,2023-01-16,Engineering,ML Engineer,Full-Time,Female,26,Seattle,Master's,2,8900,Good,No
+E014,2017-03-22,Marketing,Brand Manager,Full-Time,Male,40,New York,Master's,15,8800,Excellent,No
+E015,2022-07-11,Finance,Budget Analyst,Part-Time,Female,32,Dallas,Bachelor's,7,3900,Average,Yes
+E016,2019-12-03,HR,HR Business Partner,Full-Time,Male,37,Chicago,Master's,12,7200,Good,No
+E017,2020-05-27,Engineering,DevOps Engineer,Full-Time,Male,33,Austin,Bachelor's,8,9100,Excellent,No
+E018,2016-11-14,Sales,Sales Director,Full-Time,Female,48,Miami,MBA,24,13500,Excellent,No
+E019,2021-03-08,Marketing,SEO Specialist,Contract,Male,25,Boston,Bachelor's,2,4200,Average,Yes
+E020,2018-06-19,Finance,CFO,Full-Time,Male,55,New York,MBA,30,18000,Excellent,No
+E021,2022-10-05,Engineering,QA Engineer,Full-Time,Female,27,Seattle,Bachelor's,3,6400,Good,No
+E022,2019-01-28,HR,L&D Specialist,Full-Time,Female,34,Chicago,Master's,9,6100,Good,No
+E023,2023-04-17,Sales,SDR,Full-Time,Male,23,Miami,Bachelor's,1,4500,Average,No
+E024,2017-08-09,Engineering,Tech Lead,Full-Time,Male,43,San Francisco,Master's,19,14200,Excellent,No
+E025,2020-11-30,Marketing,Demand Gen Manager,Full-Time,Female,36,New York,Master's,11,8600,Excellent,No
+E026,2021-02-22,Finance,Tax Analyst,Full-Time,Male,29,Dallas,Bachelor's,5,6300,Good,No
+E027,2018-04-11,Engineering,Backend Engineer,Full-Time,Female,31,Austin,Bachelor's,7,8700,Excellent,No
+E028,2022-08-16,Sales,Key Account Manager,Full-Time,Male,39,Miami,Bachelor's,14,9800,Good,No
+E029,2023-06-05,HR,Recruiter,Part-Time,Female,25,Chicago,Bachelor's,2,2800,Average,Yes
+E030,2016-02-29,Engineering,CTO,Full-Time,Male,52,San Francisco,PhD,28,22000,Excellent,No
+E031,2020-07-14,Marketing,Social Media Manager,Contract,Female,26,Boston,Bachelor's,3,4000,Good,No
+E032,2019-09-25,Finance,Risk Analyst,Full-Time,Male,33,Dallas,Master's,8,7600,Good,No
+E033,2021-11-08,Engineering,Cloud Architect,Full-Time,Male,38,Seattle,Master's,13,13800,Excellent,No
+E034,2018-01-17,Sales,Inside Sales Rep,Full-Time,Female,30,Miami,Bachelor's,6,6700,Average,Yes
+E035,2022-05-03,HR,Compensation Analyst,Full-Time,Male,35,Chicago,Master's,10,7400,Good,No
+E036,2017-07-26,Engineering,Mobile Developer,Full-Time,Female,36,Austin,Bachelor's,11,9300,Excellent,No
+E037,2020-02-13,Marketing,PR Specialist,Full-Time,Male,31,New York,Bachelor's,6,6800,Good,No
+E038,2023-09-01,Finance,Junior Accountant,Full-Time,Female,22,Dallas,Bachelor's,0,4800,Average,No
+E039,2015-10-20,Engineering,Principal Engineer,Full-Time,Male,47,San Francisco,PhD,23,16500,Excellent,No
+E040,2019-06-04,Sales,Regional Manager,Full-Time,Female,41,Miami,MBA,17,12000,Excellent,No
