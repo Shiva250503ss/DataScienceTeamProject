@@ -40,6 +40,20 @@ from services.llm_chat_engine import LLMChatEngine
 from services.metric_deriver import MetricDeriver
 from utils.formatting import format_number
 
+# ── Pre-load project-root utils.config for the ML pipeline ───────────────────
+# ai_dashboard_generator/utils/ is now the active 'utils' package, so
+# agents/base.py's `from utils.config import config` would fail.
+# Injecting it explicitly into sys.modules fixes the import without disturbing
+# the dashboard's utils.formatting / utils.helpers resolution.
+import importlib.util as _ilu
+_PR_UTILS_CONFIG = Path(__file__).resolve().parents[1] / "utils" / "config.py"
+if "utils.config" not in sys.modules:
+    _spec = _ilu.spec_from_file_location("utils.config", str(_PR_UTILS_CONFIG))
+    _cfg_mod = _ilu.module_from_spec(_spec)
+    sys.modules["utils.config"] = _cfg_mod
+    _spec.loader.exec_module(_cfg_mod)
+del _ilu, _PR_UTILS_CONFIG, _spec, _cfg_mod
+
 # ── Chart key counter (namespaced to avoid collision with main app) ───────────
 _dg_chart_counter = 0
 

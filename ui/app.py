@@ -477,18 +477,25 @@ with tab_ml:
         # ── Segments ──────────────────────────────────────────────────────────
         with tab_segments:
             segment_analysis = result.get("segment_analysis", {})
-            if segment_analysis:
+            segments_list = segment_analysis.get("segments", []) if isinstance(segment_analysis, dict) else []
+            if segments_list:
                 st.markdown("### Segment Analysis")
-                for seg_col, seg_data in segment_analysis.items():
-                    with st.expander(f"Segment by: `{seg_col}`"):
-                        all_segments = []
-                        for seg_val, seg_metrics in seg_data.items():
-                            row = {"Segment": seg_val}
-                            row.update(seg_metrics)
-                            all_segments.append(row)
-                        if all_segments:
-                            st.dataframe(pd.DataFrame(all_segments),
-                                         use_container_width=True, hide_index=True)
+                summary = segment_analysis.get("summary", "")
+                if summary:
+                    st.info(summary)
+                # Group segments by column
+                cols_seen = []
+                for s in segments_list:
+                    c = s.get("column", "unknown")
+                    if c not in cols_seen:
+                        cols_seen.append(c)
+                for col in cols_seen:
+                    column_segments = [s for s in segments_list if s.get("column") == col]
+                    with st.expander(f"Segment by: `{col}`"):
+                        st.dataframe(
+                            pd.DataFrame(column_segments).drop(columns=["column"], errors="ignore"),
+                            use_container_width=True, hide_index=True,
+                        )
             else:
                 st.info("No segment analysis available.")
 

@@ -88,13 +88,7 @@ class FeatureAgent(BaseAgent):
         feature_report['encoding'] = encoding_info
         
         # =====================================================================
-        # Step 3: Scale numerical columns
-        # =====================================================================
-        X, scaling_info = self._scale_numericals(X, column_types)
-        feature_report['scaling'] = scaling_info
-        
-        # =====================================================================
-        # Step 4: Feature selection (only if >50 features)
+        # Step 3: Feature selection (only if >50 features)
         # =====================================================================
         if len(X.columns) > 50:
             X, selection_info = self._select_features(X, y, task_type)
@@ -104,14 +98,21 @@ class FeatureAgent(BaseAgent):
                 'method': 'none',
                 'reason': f'Only {len(X.columns)} features — no selection needed'
             }
-        
+
         # =====================================================================
-        # Step 4b: VIF-based multicollinearity removal
+        # Step 4: VIF-based multicollinearity removal
         # =====================================================================
-        X, vif_info = self._remove_high_vif_features(X)
+        X, vif_info = self._remove_high_vif_features(X, y=y)
         feature_report['vif_analysis'] = vif_info
         if vif_info.get('removed_features'):
             self.log(f"VIF: Removed {len(vif_info['removed_features'])} multicollinear features")
+
+        # =====================================================================
+        # Step 5: Scale numerical columns (after VIF so scaler matches final
+        # feature set — avoids sklearn feature-name mismatch at predict time)
+        # =====================================================================
+        X, scaling_info = self._scale_numericals(X, column_types)
+        feature_report['scaling'] = scaling_info
         
         # =====================================================================
         # Step 5: Encode target variable (classification only)
@@ -372,61 +373,85 @@ class FeatureAgent(BaseAgent):
         return vif_data
     
     def _remove_high_vif_features(self, X: pd.DataFrame,
-                                    threshold: float = 10.0) -> Tuple[pd.DataFrame, Dict]:
+                                    threshold: float = 10.0,
+                                    y: pd.Series = None) -> Tuple[pd.DataFrame, Dict]:
         """
-        Iteratively remove the feature with highest VIF until all are below threshold.
-        
-        This is the standard data science approach to multicollinearity:
-          1. Compute VIF for all features
-          2. If max VIF > threshold, remove that feature
-          3. Repeat until all VIF ≤ threshold
-        
+        Iteratively remove multicollinear features until all VIF scores are
+        below threshold.
+
+        When multiple features exceed the threshold, instead of blindly dropping
+        the highest-VIF one, we drop the feature with the LOWEST absolute
+        correlation to the target (y).  This preserves predictive power — e.g.
+        petal_length and petal_width are both collinear, but whichever is more
+        correlated with the target is kept.
+
         Args:
-            X: Feature DataFrame
-            threshold: VIF threshold (default 10 — standard practice)
-        
+            X: Feature DataFrame (numeric columns only are examined)
+            threshold: VIF threshold (default 10)
+            y: Target series used to break ties in favour of predictive features
+
         Returns:
             Tuple of (cleaned DataFrame, VIF analysis report)
         """
         numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
-        
-        # Skip if too few numeric features
-        if len(numeric_cols) < 3:
+
+        # Skip VIF for small feature sets: tree models handle collinearity fine
+        # and removing features from a small set hurts more than it helps.
+        if len(numeric_cols) < 10:
             return X, {
                 'method': 'vif',
                 'threshold': threshold,
                 'removed_features': [],
-                'final_vif_scores': {},
-                'reason': 'Too few numeric features for VIF analysis'
+                'final_vif_scores': self._compute_vif(X),
+                'reason': f'Only {len(numeric_cols)} numeric features — VIF removal skipped to preserve all features'
             }
-        
+
+        # Pre-compute target correlations once (used to pick which to drop)
+        target_corr = {}
+        if y is not None:
+            try:
+                y_numeric = pd.to_numeric(y, errors='coerce').fillna(0)
+                for col in numeric_cols:
+                    target_corr[col] = abs(float(X[col].corr(y_numeric)))
+            except Exception:
+                pass
+
         removed = []
-        max_iterations = min(len(numeric_cols), 20)  # Safety limit
-        
+        max_iterations = min(len(numeric_cols), 20)
+
         for _ in range(max_iterations):
             vif_scores = self._compute_vif(X)
             if not vif_scores:
                 break
-            
-            max_vif_col = max(vif_scores, key=vif_scores.get)
-            max_vif_val = vif_scores[max_vif_col]
-            
-            if max_vif_val > threshold:
-                X = X.drop(columns=[max_vif_col])
-                removed.append({'feature': max_vif_col, 'vif': max_vif_val})
-                self.log(f"  VIF: Removed '{max_vif_col}' (VIF={max_vif_val:.1f} > {threshold})")
-            else:
+
+            max_vif_val = max(vif_scores.values())
+            if max_vif_val <= threshold:
                 break
-        
-        # Final VIF scores
+
+            # Candidates: all features above the threshold
+            candidates = [col for col, v in vif_scores.items() if v > threshold]
+
+            if target_corr:
+                # Drop the candidate least correlated with the target
+                col_to_drop = min(candidates, key=lambda c: target_corr.get(c, 0.0))
+            else:
+                # Fallback: drop the one with the highest VIF
+                col_to_drop = max(candidates, key=lambda c: vif_scores[c])
+
+            X = X.drop(columns=[col_to_drop])
+            removed.append({'feature': col_to_drop, 'vif': vif_scores[col_to_drop]})
+            self.log(
+                f"  VIF: Removed '{col_to_drop}' "
+                f"(VIF={vif_scores[col_to_drop]:.1f}, "
+                f"target_corr={target_corr.get(col_to_drop, float('nan')):.3f})"
+            )
+
         final_vif = self._compute_vif(X)
-        
-        vif_info = {
+
+        return X, {
             'method': 'vif',
             'threshold': threshold,
             'removed_features': removed,
             'n_removed': len(removed),
             'final_vif_scores': final_vif
         }
-        
-        return X, vif_info
