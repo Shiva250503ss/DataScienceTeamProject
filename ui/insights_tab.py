@@ -354,16 +354,25 @@ def render() -> None:
     import os
     from dotenv import load_dotenv
     load_dotenv()
-    _groq_key   = os.getenv("GROQ_API_KEY", "")
-    _groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    _gemini_key   = os.getenv("GEMINI_API_KEY", "")
+    _gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    _groq_key     = os.getenv("GROQ_API_KEY", "")
+    _groq_model   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     init_session_state(st)
 
-    # ── Auto-connect Groq chat LLM on first load ─────────────────────────────
-    if _groq_key and st.session_state.get("chat_llm_client") is None:
-        from services.llm_clients import GroqClient
-        st.session_state.chat_llm_client = GroqClient(api_key=_groq_key, model=_groq_model)
-        st.session_state.chat_llm_model  = _groq_model
+    # ── Auto-connect LLM on first load — Gemini primary, Groq fallback ───────
+    if st.session_state.get("chat_llm_client") is None:
+        from services.llm_clients import GeminiClient, GroqClient
+        if _gemini_key:
+            _fallback = GroqClient(api_key=_groq_key, model=_groq_model) if _groq_key else None
+            st.session_state.chat_llm_client = GeminiClient(
+                api_key=_gemini_key, model=_gemini_model, fallback_client=_fallback
+            )
+            st.session_state.chat_llm_model = f"{_gemini_model} (+ Groq fallback)" if _fallback else _gemini_model
+        elif _groq_key:
+            st.session_state.chat_llm_client = GroqClient(api_key=_groq_key, model=_groq_model)
+            st.session_state.chat_llm_model  = _groq_model
 
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel", type=["csv", "xlsx", "xls"], key="dg_uploader"
@@ -449,31 +458,36 @@ def render() -> None:
 
         st.divider()
         st.subheader("🤖 Chat LLM")
-        st.caption("Connect Groq to power the chatbot.")
-
-        chat_key_input = st.text_input(
-            "Groq API key",
-            value=_groq_key or (st.session_state.get("chat_llm_client") and "") or "",
-            type="password",
-            placeholder="gsk_...",
-            help="Free key at console.groq.com",
-            key="dg_chat_groq_key",
-        )
-        chat_model_input = st.selectbox(
-            "Chat model",
-            ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
-            key="dg_chat_model_select",
-        )
-        if chat_key_input and st.button("Connect Chat LLM", use_container_width=True, key="dg_connect_chat"):
-            from services.llm_clients import GroqClient
-            st.session_state.chat_llm_client = GroqClient(api_key=chat_key_input, model=chat_model_input)
-            st.session_state.chat_llm_model  = chat_model_input
-            st.rerun()
+        st.caption("Gemini 2.5 Flash (primary) · Groq fallback · auto-loaded from .env")
 
         if st.session_state.get("chat_llm_model"):
             st.success(f"Connected: **{st.session_state.chat_llm_model}**")
         else:
-            st.warning("Chat not connected — enter a Groq key above.")
+            st.warning("No LLM connected — add GEMINI_API_KEY or GROQ_API_KEY to .env")
+
+        with st.expander("Manual override", expanded=False):
+            chat_gemini_key = st.text_input(
+                "Gemini API key", value=_gemini_key, type="password",
+                placeholder="AIza...", key="dg_chat_gemini_key",
+            )
+            chat_groq_key = st.text_input(
+                "Groq API key (fallback)", value=_groq_key, type="password",
+                placeholder="gsk_...", key="dg_chat_groq_key",
+            )
+            if st.button("Reconnect LLM", use_container_width=True, key="dg_connect_chat"):
+                from services.llm_clients import GeminiClient, GroqClient
+                if chat_gemini_key:
+                    _fb = GroqClient(api_key=chat_groq_key, model=_groq_model) if chat_groq_key else None
+                    st.session_state.chat_llm_client = GeminiClient(
+                        api_key=chat_gemini_key, model=_gemini_model, fallback_client=_fb
+                    )
+                    st.session_state.chat_llm_model = (
+                        f"{_gemini_model} (+ Groq fallback)" if _fb else _gemini_model
+                    )
+                elif chat_groq_key:
+                    st.session_state.chat_llm_client = GroqClient(api_key=chat_groq_key, model=_groq_model)
+                    st.session_state.chat_llm_model  = _groq_model
+                st.rerun()
 
         st.divider()
         st.subheader("📊 Dashboard Enhancement")
@@ -481,15 +495,36 @@ def render() -> None:
 
         provider = st.selectbox(
             "Provider",
-            ["None (rule-based)", "Groq (free API)"],
+            ["None (rule-based)", "Gemini (primary)", "Groq (fallback)"],
             key="dg_provider",
         )
 
-        if provider == "Groq (free API)":
+        if provider == "Gemini (primary)":
+            dash_gemini_key = st.text_input(
+                "Gemini API key", value=_gemini_key, type="password",
+                placeholder="AIza...", key="dg_gemini_key",
+            )
+            if dash_gemini_key and st.button("Apply to Dashboard", use_container_width=True, key="dg_apply_gemini"):
+                from services.llm_clients import GeminiClient, GroqClient
+                _fb = GroqClient(api_key=_groq_key, model=_groq_model) if _groq_key else None
+                _tmp = GeminiClient(api_key=dash_gemini_key, model=_gemini_model, fallback_client=_fb)
+                n = len(profile.numeric_columns) + len(profile.categorical_columns)
+                with st.spinner(f"Analyzing {n} columns with Gemini…"):
+                    try:
+                        new_edf, new_spec = DashboardGenerator.generate(
+                            df, profile, llm_client=_tmp, llm_model=_gemini_model
+                        )
+                        st.session_state.enriched_df    = new_edf
+                        st.session_state.dashboard_spec = new_spec
+                        st.session_state.llm_enhanced   = True
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Enhancement error: {exc}")
+
+        elif provider == "Groq (fallback)":
             dash_groq_key = st.text_input(
                 "Groq API key", value=_groq_key, type="password",
-                placeholder="gsk_...", help="Free key at console.groq.com",
-                key="dg_groq_key",
+                placeholder="gsk_...", key="dg_groq_key",
             )
             dash_groq_model = st.selectbox(
                 "Model",

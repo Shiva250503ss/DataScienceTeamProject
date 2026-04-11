@@ -10,7 +10,9 @@ class Config:
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
     
-    # LLM (Groq)
+    # LLM — primary: Gemini, fallback: Groq
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     

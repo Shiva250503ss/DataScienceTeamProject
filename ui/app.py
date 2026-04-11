@@ -476,7 +476,12 @@ with tab_ml:
                 if importance is not None:
                     st.markdown("### SHAP Feature Importance")
                     st.dataframe(importance.head(15), use_container_width=True, hide_index=True)
-                display_charts(explanations.get("charts", {}), "Explain")
+                # Exclude summary_dashboard — it duplicates the narrative already shown above
+                explain_charts = {
+                    k: v for k, v in explanations.get("charts", {}).items()
+                    if k != "summary_dashboard"
+                }
+                display_charts(explain_charts, "Explain")
             else:
                 st.info("No explanations available.")
 
