@@ -488,23 +488,65 @@ with tab_ml:
         # ── Error Analysis ────────────────────────────────────────────────────
         with tab_errors:
             error_analysis = result.get("error_analysis", {})
-            if error_analysis:
+            if error_analysis and error_analysis.get("summary"):
                 st.markdown("### Error Analysis")
                 task_type = result.get("task_type", "")
+
+                # Summary message
+                st.info(error_analysis.get("summary", ""))
+
                 if task_type == "regression":
                     ea_cols = st.columns(3)
                     ea_cols[0].metric("MAE",  f"{error_analysis.get('mae', 0):.4f}")
                     ea_cols[1].metric("RMSE", f"{error_analysis.get('rmse', 0):.4f}")
-                    ea_cols[2].metric("R²",   f"{error_analysis.get('r2', 0):.4f}")
-                    display_charts(error_analysis.get("charts", {}), "ErrorAnalysis")
+                    ea_cols[2].metric("Median Error", f"{error_analysis.get('median_error', 0):.4f}")
+
+                    # Error patterns by value range
+                    patterns = error_analysis.get("error_patterns", [])
+                    if patterns:
+                        st.markdown("#### Error by Value Range")
+                        st.dataframe(
+                            pd.DataFrame(patterns),
+                            use_container_width=True, hide_index=True,
+                        )
+
+                    # Worst predictions
+                    worst = error_analysis.get("worst_samples", [])
+                    if worst:
+                        st.markdown("#### Top 10 Worst Predictions")
+                        st.dataframe(
+                            pd.DataFrame(worst),
+                            use_container_width=True, hide_index=True,
+                        )
+
                 elif task_type == "classification":
-                    report = error_analysis.get("classification_report", "")
-                    if report:
-                        st.text(report)
-                    cm_fig = error_analysis.get("confusion_matrix_fig")
-                    if cm_fig and hasattr(cm_fig, "to_json"):
-                        st.plotly_chart(cm_fig, use_container_width=True)
-                    display_charts(error_analysis.get("charts", {}), "ErrorAnalysis")
+                    ea_cols = st.columns(3)
+                    ea_cols[0].metric("Total Errors", error_analysis.get("total_errors", 0))
+                    ea_cols[1].metric("Error Rate", f"{error_analysis.get('error_rate', 0):.2f}%")
+                    ea_cols[2].metric("Classes", len(error_analysis.get("class_errors", [])))
+
+                    # Per-class error breakdown
+                    class_errors = error_analysis.get("class_errors", [])
+                    if class_errors:
+                        st.markdown("#### Per-Class Error Rates")
+                        st.dataframe(
+                            pd.DataFrame(class_errors),
+                            use_container_width=True, hide_index=True,
+                        )
+
+                    # Confusion matrix as table
+                    cm = error_analysis.get("confusion_matrix")
+                    if cm:
+                        st.markdown("#### Confusion Matrix")
+                        encoders = result.get("encoders", {})
+                        if "target" in encoders:
+                            labels = list(encoders["target"].classes_)
+                        else:
+                            labels = [str(i) for i in range(len(cm))]
+                        cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+                        cm_df.index.name = "Actual"
+                        cm_df.columns.name = "Predicted"
+                        st.dataframe(cm_df, use_container_width=True)
             else:
                 st.info("No error analysis available.")
 

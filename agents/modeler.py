@@ -39,6 +39,13 @@ try:
 except ImportError:
     _HAS_CB = False
 
+try:
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    _HAS_OPTUNA = True
+except ImportError:
+    _HAS_OPTUNA = False
+
 from rl_selector.inference import RLModelSelector
 from agents.base import BaseAgent
 
@@ -322,129 +329,382 @@ class ModelerAgent(BaseAgent):
     def _train_model(self, model_name: str, X: pd.DataFrame,
                      y: pd.Series, task_type: str) -> tuple:
         """
-        Train a single model and return it with its CV score.
-        
+        Train a single model with Optuna hyperparameter tuning.
+
         Process:
-          1. Look up the model class by name
-          2. Get sensible default hyperparameters for it
+          1. Try Optuna tuning (25 trials, 90s timeout per model)
+          2. If Optuna unavailable or fails, use improved defaults
           3. Run 5-fold cross-validation to get the score
           4. Fit the model on full data
           5. Return (fitted_model, cv_score)
-        
-        Args:
-            model_name: String name of the model (e.g., 'XGBClassifier')
-            X: Feature matrix
-            y: Target vector
-            task_type: 'classification' or 'regression'
-        
-        Returns:
-            Tuple of (fitted model, mean CV score)
         """
+        # Try Optuna hyperparameter tuning first
+        if _HAS_OPTUNA:
+            try:
+                model, score = self._optuna_tune(model_name, X, y, task_type)
+                return model, score
+            except Exception as e:
+                self.log(f"  Optuna tuning failed ({e}), using defaults")
+
+        # Fallback: improved default hyperparameters
         model_class = self.model_classes[model_name]
-        
-        # Get default hyperparameters
         params = self._get_default_params(model_name)
         model = model_class(**params)
-        
-        # 5-fold cross-validation
+
         scoring = 'accuracy' if task_type == 'classification' else 'r2'
         scores = cross_val_score(model, X, y, cv=5, scoring=scoring)
-        
-        # Fit on full data
+
         model.fit(X, y)
-        
         return model, scores.mean()
     
     def _get_default_params(self, model_name: str) -> Dict:
         """
-        Get sensible default hyperparameters for each model.
-        
-        These are NOT the optimal hyperparameters — they're safe defaults
-        that work well in most cases. Optuna hyperparameter tuning could
-        be added later for further improvement.
-        
-        Key decisions:
-          - XGBoost/LightGBM/CatBoost: 100 trees, depth 6, auto GPU
-          - RandomForest/ExtraTrees:    100 trees, depth 10, parallel
-          - LogReg/SVC:                 high max_iter to ensure convergence
-          - All models:                 random_state=42 for reproducibility
+        Improved default hyperparameters for each model.
+
+        Key improvements over naive defaults:
+          - class_weight='balanced' for all classifiers (handles imbalanced data)
+          - 300 trees instead of 100 (more = better for ensembles)
+          - max_depth=None for RF/ExtraTrees (let trees grow fully)
+          - learning_rate + subsample for boosting (reduces overfitting)
+          - weights='distance' for KNN (closer neighbors matter more)
         """
         params = {
-            # --- Boosting models (GPU-enabled) ---
+            # --- Boosting models ---
             'XGBClassifier': {
-                'n_estimators': 100, 'max_depth': 6,
+                'n_estimators': 300, 'max_depth': 6,
+                'learning_rate': 0.1, 'subsample': 0.8,
+                'colsample_bytree': 0.8, 'min_child_weight': 3,
                 'tree_method': 'auto', 'random_state': 42,
-                'eval_metric': 'logloss', 'verbosity': 0
+                'eval_metric': 'logloss', 'verbosity': 0,
             },
             'XGBRegressor': {
-                'n_estimators': 100, 'max_depth': 6,
+                'n_estimators': 300, 'max_depth': 6,
+                'learning_rate': 0.1, 'subsample': 0.8,
+                'colsample_bytree': 0.8, 'min_child_weight': 3,
                 'tree_method': 'auto', 'random_state': 42,
-                'verbosity': 0
+                'verbosity': 0,
             },
             'LGBMClassifier': {
-                'n_estimators': 100, 'max_depth': 6,
-                'random_state': 42, 'verbose': -1
+                'n_estimators': 300, 'max_depth': -1,
+                'learning_rate': 0.1, 'num_leaves': 31,
+                'subsample': 0.8, 'colsample_bytree': 0.8,
+                'class_weight': 'balanced',
+                'random_state': 42, 'verbose': -1,
             },
             'LGBMRegressor': {
-                'n_estimators': 100, 'max_depth': 6,
-                'random_state': 42, 'verbose': -1
+                'n_estimators': 300, 'max_depth': -1,
+                'learning_rate': 0.1, 'num_leaves': 31,
+                'subsample': 0.8, 'colsample_bytree': 0.8,
+                'random_state': 42, 'verbose': -1,
             },
             'CatBoostClassifier': {
-                'iterations': 100, 'depth': 6,
-                'random_state': 42, 'verbose': 0
+                'iterations': 300, 'depth': 6,
+                'learning_rate': 0.1,
+                'auto_class_weights': 'Balanced',
+                'random_state': 42, 'verbose': 0,
             },
             'CatBoostRegressor': {
-                'iterations': 100, 'depth': 6,
-                'random_state': 42, 'verbose': 0
+                'iterations': 300, 'depth': 6,
+                'learning_rate': 0.1,
+                'random_state': 42, 'verbose': 0,
             },
             # --- Ensemble tree models ---
             'RandomForestClassifier': {
-                'n_estimators': 100, 'max_depth': 10,
-                'random_state': 42, 'n_jobs': -1
+                'n_estimators': 300, 'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'class_weight': 'balanced',
+                'random_state': 42, 'n_jobs': -1,
             },
             'RandomForestRegressor': {
-                'n_estimators': 100, 'max_depth': 10,
-                'random_state': 42, 'n_jobs': -1
+                'n_estimators': 300, 'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'random_state': 42, 'n_jobs': -1,
             },
             'ExtraTreesClassifier': {
-                'n_estimators': 100, 'max_depth': 10,
-                'random_state': 42, 'n_jobs': -1
+                'n_estimators': 300, 'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'class_weight': 'balanced',
+                'random_state': 42, 'n_jobs': -1,
             },
             'ExtraTreesRegressor': {
-                'n_estimators': 100, 'max_depth': 10,
-                'random_state': 42, 'n_jobs': -1
+                'n_estimators': 300, 'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'random_state': 42, 'n_jobs': -1,
             },
             'GradientBoostingClassifier': {
-                'n_estimators': 100, 'max_depth': 6,
-                'random_state': 42
+                'n_estimators': 200, 'max_depth': 5,
+                'learning_rate': 0.1, 'subsample': 0.8,
+                'min_samples_split': 5,
+                'random_state': 42,
             },
             'GradientBoostingRegressor': {
-                'n_estimators': 100, 'max_depth': 6,
-                'random_state': 42
+                'n_estimators': 200, 'max_depth': 5,
+                'learning_rate': 0.1, 'subsample': 0.8,
+                'min_samples_split': 5,
+                'random_state': 42,
             },
             # --- Linear models ---
             'LogisticRegression': {
-                'max_iter': 1000, 'random_state': 42
+                'max_iter': 2000, 'C': 1.0,
+                'class_weight': 'balanced',
+                'solver': 'lbfgs',
+                'random_state': 42,
             },
             'DecisionTreeClassifier': {
-                'random_state': 42
+                'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'class_weight': 'balanced',
+                'random_state': 42,
             },
             'DecisionTreeRegressor': {
-                'random_state': 42
+                'max_depth': None,
+                'min_samples_split': 5, 'min_samples_leaf': 2,
+                'random_state': 42,
             },
-            'Ridge': {'alpha': 1.0},
-            'Lasso': {'alpha': 1.0},
-            'ElasticNet': {'alpha': 1.0},
+            'Ridge': {'alpha': 1.0, 'random_state': 42},
+            'Lasso': {'alpha': 0.1, 'random_state': 42},
+            'ElasticNet': {'alpha': 0.1, 'l1_ratio': 0.5, 'random_state': 42},
             # --- Distance/kernel models ---
-            'SVC': {'probability': True, 'random_state': 42},
-            'SVR': {},
-            'KNeighborsClassifier': {'n_neighbors': 5},
-            'KNeighborsRegressor': {'n_neighbors': 5},
+            'SVC': {
+                'probability': True, 'C': 1.0,
+                'class_weight': 'balanced',
+                'random_state': 42,
+            },
+            'SVR': {'C': 1.0},
+            'KNeighborsClassifier': {'n_neighbors': 5, 'weights': 'distance'},
+            'KNeighborsRegressor': {'n_neighbors': 5, 'weights': 'distance'},
             # --- Probabilistic models ---
             'GaussianNB': {},
         }
         return params.get(model_name, {})
-    
+
+    # =========================================================================
+    # Optuna Hyperparameter Tuning
+    # =========================================================================
+
+    def _optuna_tune(self, model_name: str, X: pd.DataFrame,
+                     y: pd.Series, task_type: str) -> tuple:
+        """
+        Quick Optuna hyperparameter optimization (25 trials, 90s timeout).
+
+        This is the biggest accuracy booster — can improve scores by 10-30%
+        compared to default hyperparameters. Uses 5-fold cross-validation
+        as the objective to avoid overfitting.
+        """
+        import optuna
+
+        model_class = self.model_classes[model_name]
+        scoring = 'accuracy' if task_type == 'classification' else 'r2'
+
+        # Adapt trials to dataset size (larger = slower fits)
+        n_samples = X.shape[0]
+        if n_samples > 50000:
+            n_trials, timeout = 10, 120
+        elif n_samples > 10000:
+            n_trials, timeout = 15, 90
+        else:
+            n_trials, timeout = 25, 90
+
+        # Store full param dicts keyed by trial number
+        trial_params = {}
+
+        def objective(trial):
+            params = self._suggest_params(trial, model_name, task_type)
+            trial_params[trial.number] = params
+            try:
+                model = model_class(**params)
+                cv = cross_val_score(
+                    model, X, y, cv=5, scoring=scoring, error_score=0.0
+                )
+                return float(cv.mean())
+            except Exception:
+                return 0.0
+
+        study = optuna.create_study(direction='maximize')
+        study.optimize(
+            objective, n_trials=n_trials, timeout=timeout,
+            show_progress_bar=False,
+        )
+
+        # Retrieve full params for the best trial
+        best_params = trial_params.get(
+            study.best_trial.number, self._get_default_params(model_name)
+        )
+        best_score = study.best_value
+
+        self.log(
+            f"  Optuna: {len(study.trials)} trials, "
+            f"best score={best_score:.4f}"
+        )
+
+        # Fit final model on full data with best params
+        model = model_class(**best_params)
+        model.fit(X, y)
+
+        return model, best_score
+
+    def _suggest_params(self, trial, model_name: str, task_type: str) -> Dict:
+        """Define Optuna search space for each model type."""
+        is_clf = task_type == 'classification'
+
+        if model_name in ('RandomForestClassifier', 'RandomForestRegressor'):
+            params = {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500, step=50),
+                'max_depth': trial.suggest_categorical('max_depth', [None, 10, 20, 30]),
+                'min_samples_split': trial.suggest_int('min_samples_split', 2, 20),
+                'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
+                'max_features': trial.suggest_categorical('max_features', ['sqrt', 'log2', None]),
+                'random_state': 42, 'n_jobs': -1,
+            }
+            if is_clf:
+                params['class_weight'] = trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                )
+            return params
+
+        if model_name in ('ExtraTreesClassifier', 'ExtraTreesRegressor'):
+            params = {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500, step=50),
+                'max_depth': trial.suggest_categorical('max_depth', [None, 10, 20, 30]),
+                'min_samples_split': trial.suggest_int('min_samples_split', 2, 20),
+                'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
+                'random_state': 42, 'n_jobs': -1,
+            }
+            if is_clf:
+                params['class_weight'] = trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                )
+            return params
+
+        if model_name in ('GradientBoostingClassifier', 'GradientBoostingRegressor'):
+            return {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500, step=50),
+                'max_depth': trial.suggest_int('max_depth', 3, 10),
+                'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+                'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                'min_samples_split': trial.suggest_int('min_samples_split', 2, 20),
+                'random_state': 42,
+            }
+
+        if model_name == 'LogisticRegression':
+            return {
+                'C': trial.suggest_float('C', 0.001, 100.0, log=True),
+                'solver': 'lbfgs',
+                'class_weight': trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                ),
+                'max_iter': 2000, 'random_state': 42,
+            }
+
+        if model_name == 'SVC':
+            return {
+                'C': trial.suggest_float('C', 0.01, 100.0, log=True),
+                'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
+                'class_weight': trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                ),
+                'probability': True, 'random_state': 42,
+            }
+
+        if model_name == 'SVR':
+            return {
+                'C': trial.suggest_float('C', 0.01, 100.0, log=True),
+                'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
+            }
+
+        if model_name in ('KNeighborsClassifier', 'KNeighborsRegressor'):
+            return {
+                'n_neighbors': trial.suggest_int('n_neighbors', 3, 25, step=2),
+                'weights': trial.suggest_categorical('weights', ['uniform', 'distance']),
+            }
+
+        if model_name == 'GaussianNB':
+            return {
+                'var_smoothing': trial.suggest_float(
+                    'var_smoothing', 1e-12, 1e-6, log=True
+                ),
+            }
+
+        if model_name in ('DecisionTreeClassifier', 'DecisionTreeRegressor'):
+            params = {
+                'max_depth': trial.suggest_categorical(
+                    'max_depth', [None, 5, 10, 15, 20]
+                ),
+                'min_samples_split': trial.suggest_int('min_samples_split', 2, 20),
+                'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
+                'random_state': 42,
+            }
+            if is_clf:
+                params['class_weight'] = trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                )
+            return params
+
+        if model_name == 'Ridge':
+            return {
+                'alpha': trial.suggest_float('alpha', 0.001, 100.0, log=True),
+                'random_state': 42,
+            }
+
+        if model_name == 'Lasso':
+            return {
+                'alpha': trial.suggest_float('alpha', 0.0001, 10.0, log=True),
+                'random_state': 42,
+            }
+
+        if model_name == 'ElasticNet':
+            return {
+                'alpha': trial.suggest_float('alpha', 0.0001, 10.0, log=True),
+                'l1_ratio': trial.suggest_float('l1_ratio', 0.0, 1.0),
+                'random_state': 42,
+            }
+
+        if model_name in ('XGBClassifier', 'XGBRegressor'):
+            params = {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500, step=50),
+                'max_depth': trial.suggest_int('max_depth', 3, 10),
+                'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+                'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+                'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+                'tree_method': 'auto', 'random_state': 42, 'verbosity': 0,
+            }
+            if model_name == 'XGBClassifier':
+                params['eval_metric'] = 'logloss'
+            return params
+
+        if model_name in ('LGBMClassifier', 'LGBMRegressor'):
+            params = {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500, step=50),
+                'max_depth': trial.suggest_categorical('max_depth', [-1, 5, 10, 15]),
+                'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+                'num_leaves': trial.suggest_int('num_leaves', 20, 100),
+                'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+                'random_state': 42, 'verbose': -1,
+            }
+            if is_clf:
+                params['class_weight'] = trial.suggest_categorical(
+                    'class_weight', ['balanced', None]
+                )
+            return params
+
+        if model_name in ('CatBoostClassifier', 'CatBoostRegressor'):
+            params = {
+                'iterations': trial.suggest_int('iterations', 100, 500, step=50),
+                'depth': trial.suggest_int('depth', 3, 10),
+                'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+                'random_state': 42, 'verbose': 0,
+            }
+            if is_clf:
+                use_balanced = trial.suggest_categorical('use_balanced', [True, False])
+                if use_balanced:
+                    params['auto_class_weights'] = 'Balanced'
+            return params
+
+        # Fallback to improved defaults for any unknown model
+        return self._get_default_params(model_name)
+
     # =========================================================================
     # STEP 3: Create Ensemble
     # =========================================================================

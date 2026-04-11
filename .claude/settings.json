@@ -11,7 +11,8 @@
       "Bash(python -c \"import google.generativeai as genai; print\\('genai OK'\\)\")",
       "Bash(python -m pip install google-genai --quiet)",
       "Bash(python -c \"import google.genai as genai; print\\('google.genai OK'\\)\")",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import agents.modeler; print\\('modeler.py imports OK'\\)\")"
     ]
   }
 }
