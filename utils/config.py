@@ -2,6 +2,10 @@
 
 import os
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load .env file before reading any env vars so API keys are available
+load_dotenv()
 
 @dataclass
 class Config:
