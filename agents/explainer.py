@@ -55,23 +55,53 @@ warnings.filterwarnings('ignore')
 # LLM PROMPT TEMPLATES
 # =========================================================================
 
-GLOBAL_EXPLANATION_PROMPT = """You are explaining a machine learning model to a non-technical manager.
+PIPELINE_NARRATIVE_PROMPT = """You are a senior data scientist presenting a complete end-to-end ML pipeline analysis to a business audience. Write a structured report covering the entire pipeline — from raw data through to business recommendations.
 
-MODEL: {model_name}
-TASK: {task_type}
-PERFORMANCE: {metric_name} = {metric_value:.4f}
-TARGET: Predicting "{target_column}"
+━━━ PIPELINE SUMMARY ━━━
+Dataset   : {dataset_name}
+Target    : {target_col} ({task_type})
+Rows/Cols : {n_rows} rows × {n_cols} columns
+Quality   : {quality_score}/100
 
-TOP 10 MOST IMPORTANT FEATURES (by SHAP values):
+━━━ DATA QUALITY FINDINGS ━━━
+{data_issues}
+
+━━━ CLEANING STEPS APPLIED ━━━
+{cleaning_summary}
+
+━━━ FEATURE ENGINEERING ━━━
+{feature_summary}
+
+━━━ VARIABLE CORRELATIONS ━━━
+{correlations}
+
+━━━ MODEL SELECTION & PERFORMANCE ━━━
+Models evaluated (CV scores):
+{model_scores}
+Final model chosen: {best_model} ({metric_name} = {best_score:.4f})
+
+━━━ KEY PREDICTORS (SHAP) ━━━
 {top_features}
 
-Write a 3-4 paragraph explanation in PLAIN ENGLISH:
-1. What does this model do? (1-2 sentences)
-2. What are the most important factors driving predictions? (explain top 5 features)
-3. Are there any surprising or concerning patterns?
-4. What actionable insights can a business manager take from this?
+Write your report in exactly these 6 sections using bold headers. Each section should be 2–4 clear sentences. Use plain English — no jargon. Be specific about the numbers where it adds value.
 
-Use simple language. No jargon. Give concrete examples.
+**1. Dataset Overview & Data Vulnerabilities**
+Describe the dataset size, target variable, quality score, and the main data issues found (missing values, anomalies, outliers).
+
+**2. Data Cleaning Applied**
+Summarise what cleaning was done: duplicate removal, imputation strategies, outlier treatment. Explain WHY it was needed.
+
+**3. Feature Engineering**
+Describe what transformations were applied: encoding, scaling, multicollinearity removal (VIF). Explain the impact on model readiness.
+
+**4. Key Variable Relationships**
+Which variables are highly correlated or collinear? What does this mean for interpretation? Highlight any surprising patterns.
+
+**5. Model Selection & Performance**
+Which model won and why. Compare it against alternatives. Explain what the {metric_name} score of {best_score:.4f} means in practical terms.
+
+**6. Business Insights & Recommendations**
+Give 3–4 actionable business recommendations based on the top predictors. Frame them as decisions the business can take, not technical observations.
 """
 
 LOCAL_EXPLANATION_PROMPT = """You are explaining a SINGLE prediction to a non-technical user.
@@ -226,7 +256,8 @@ class ExplainerAgent(BaseAgent):
 
         global_narrative = self._generate_global_narrative(
             model_name, task_type, target_col, metric_name, metric_value,
-            shap_importance if shap_results else None
+            shap_importance if shap_results else None,
+            state=state,
         )
         explanations['global_narrative'] = global_narrative
 
@@ -680,23 +711,156 @@ class ExplainerAgent(BaseAgent):
     def _generate_global_narrative(self, model_name: str, task_type: str,
                                     target_col: str, metric_name: str,
                                     metric_value: float,
-                                    importance: Optional[pd.DataFrame]) -> str:
-        """Generate a plain-English global explanation using the LLM."""
-        if importance is not None and len(importance) > 0:
-            top_features_str = '\n'.join([
-                f"  {i+1}. {row['feature']} (importance: {row['importance']:.4f})"
-                for i, (_, row) in enumerate(importance.head(10).iterrows())
-            ])
-        else:
-            top_features_str = "  (SHAP values not available)"
+                                    importance: Optional[pd.DataFrame],
+                                    state: Optional[Dict] = None) -> str:
+        """Generate a structured pipeline narrative using the LLM."""
 
-        prompt = GLOBAL_EXPLANATION_PROMPT.format(
-            model_name=model_name,
+        # ── Extract pipeline context from state ───────────────────────────────
+        state = state or {}
+        profile  = state.get('profile_report', {})
+        cleaning = state.get('cleaning_report', {})
+        feat_rep = state.get('feature_report', {})
+        cv_scores = state.get('cv_scores', {})
+        ensemble_score = state.get('ensemble_score', 0.0)
+        dataset_name   = state.get('dataset_name', 'Dataset')
+
+        n_rows         = profile.get('n_rows', '?')
+        n_cols         = profile.get('n_cols', '?')
+        quality_score  = profile.get('quality_score', '?')
+
+        # ── 1. Data quality issues ─────────────────────────────────────────────
+        warnings_list  = profile.get('warnings', [])
+        anomalies_list = profile.get('describe_anomalies', [])
+        missing_raw    = profile.get('missing_summary', {})
+        # missing_summary values may be counts or pcts — keep whichever is non-zero
+        missing_cols   = {k: v for k, v in missing_raw.items() if v and v > 0}
+
+        issue_lines = []
+        if quality_score != '?' and int(quality_score) < 80:
+            issue_lines.append(f"Data quality score is {quality_score}/100 — improvement was needed.")
+        if missing_cols:
+            sample = list(missing_cols.items())[:5]
+            issue_lines.append(
+                "Missing values in: " + ", ".join(f"{c} ({v})" for c, v in sample)
+                + ("…" if len(missing_cols) > 5 else "")
+            )
+        if anomalies_list:
+            issue_lines.append(f"Statistical anomalies detected in {len(anomalies_list)} column(s).")
+        if warnings_list:
+            issue_lines += [str(w) for w in warnings_list[:3]]
+        data_issues = "\n".join(issue_lines) if issue_lines else "No major data quality issues detected."
+
+        # ── 2. Cleaning summary ────────────────────────────────────────────────
+        dup     = cleaning.get('duplicate_removal', {})
+        mv      = cleaning.get('missing_value_handling', {})
+        outliers = cleaning.get('outlier_handling', {})
+        cat_std  = cleaning.get('category_standardization', {})
+
+        clean_lines = []
+        rows_removed = dup.get('rows_removed', 0)
+        if rows_removed:
+            clean_lines.append(f"Removed {rows_removed:,} duplicate rows.")
+        if mv:
+            strategies: Dict[str, int] = {}
+            for info in mv.values():
+                s = info.get('strategy', 'unknown')
+                strategies[s] = strategies.get(s, 0) + 1
+            clean_lines.append(
+                "Missing value imputation: "
+                + ", ".join(f"{cnt} col(s) → {strat}" for strat, cnt in strategies.items())
+            )
+        if outliers:
+            clean_lines.append(
+                f"Outlier treatment (IQR method) applied to {len(outliers)} column(s)."
+            )
+        if cat_std:
+            clean_lines.append(
+                f"Category standardisation applied to {len(cat_std)} column(s)."
+            )
+        cleaning_summary = "\n".join(clean_lines) if clean_lines else "No significant cleaning required."
+
+        # ── 3. Feature engineering summary ────────────────────────────────────
+        encoding = feat_rep.get('encoding', {})
+        scaling  = feat_rep.get('scaling', {})
+        vif_info = feat_rep.get('vif_analysis', {})
+        dropped  = feat_rep.get('dropped_columns', [])
+
+        feat_lines = []
+        if encoding:
+            enc_types: Dict[str, int] = {}
+            for info in encoding.values():
+                m = info.get('method', 'unknown')
+                enc_types[m] = enc_types.get(m, 0) + 1
+            feat_lines.append(
+                "Encoding: " + ", ".join(f"{cnt} col(s) via {m}" for m, cnt in enc_types.items())
+            )
+        if scaling:
+            feat_lines.append(
+                f"Scaling: {scaling.get('method', 'Standard')} applied to "
+                f"{scaling.get('n_columns', '?')} column(s)."
+            )
+        removed_vif = vif_info.get('removed_features', [])
+        if removed_vif:
+            feat_lines.append(
+                f"VIF multicollinearity check removed {len(removed_vif)} highly correlated feature(s)."
+            )
+        if dropped:
+            feat_lines.append(
+                f"Dropped {len(dropped)} ID-like / non-informative column(s): "
+                + ", ".join(str(d) for d in dropped[:5])
+                + ("…" if len(dropped) > 5 else "")
+            )
+        feature_summary = "\n".join(feat_lines) if feat_lines else "Standard encoding and scaling applied."
+
+        # ── 4. Correlations / multicollinearity ────────────────────────────────
+        final_vif = vif_info.get('final_vif_scores', {})
+        if final_vif:
+            high = [(k, v) for k, v in final_vif.items() if v > 5]
+            high.sort(key=lambda x: x[1], reverse=True)
+            if high:
+                corr_str = (
+                    "High VIF features (>5, indicating multicollinearity): "
+                    + ", ".join(f"{k} (VIF={v:.1f})" for k, v in high[:6])
+                )
+            else:
+                corr_str = "All VIF scores ≤ 5 — no significant multicollinearity detected."
+        else:
+            corr_str = "VIF analysis not available; standard correlation checks were performed."
+
+        # ── 5. Model scores ────────────────────────────────────────────────────
+        all_model_scores = {**cv_scores, 'Ensemble': ensemble_score}
+        model_scores_str = "\n".join(
+            f"  {'→' if n == model_name else ' '} {n}: {s:.4f}"
+            for n, s in sorted(all_model_scores.items(), key=lambda x: x[1], reverse=True)
+        )
+        best_score = all_model_scores.get(model_name, metric_value)
+
+        # ── 6. SHAP top features ───────────────────────────────────────────────
+        if importance is not None and len(importance) > 0:
+            top_features_str = "\n".join(
+                f"  {i+1}. {row['feature']} (SHAP={row['importance']:.4f})"
+                for i, (_, row) in enumerate(importance.head(8).iterrows())
+            )
+        else:
+            top_features_str = "  SHAP values not available for this model type."
+
+        # ── Build and call prompt ──────────────────────────────────────────────
+        prompt = PIPELINE_NARRATIVE_PROMPT.format(
+            dataset_name=dataset_name,
+            target_col=target_col,
             task_type=task_type,
-            target_column=target_col,
+            n_rows=n_rows,
+            n_cols=n_cols,
+            quality_score=quality_score,
+            data_issues=data_issues,
+            cleaning_summary=cleaning_summary,
+            feature_summary=feature_summary,
+            correlations=corr_str,
+            model_scores=model_scores_str,
+            best_model=model_name,
             metric_name=metric_name,
-            metric_value=metric_value,
-            top_features=top_features_str
+            best_score=best_score,
+            top_features=top_features_str,
         )
 
         try:
@@ -704,9 +868,14 @@ class ExplainerAgent(BaseAgent):
             return narrative.strip()
         except Exception as e:
             self.log(f"  LLM global narrative failed: {e}")
-            return (f"The {model_name} model predicts '{target_col}' with a "
-                    f"{metric_name} of {metric_value:.4f}. "
-                    f"The most important features are shown in the SHAP charts above.")
+            return (
+                f"**1. Dataset Overview**\n"
+                f"Dataset '{dataset_name}' has {n_rows} rows and {n_cols} columns. "
+                f"Target: '{target_col}' ({task_type}). Quality score: {quality_score}/100.\n\n"
+                f"**5. Model Performance**\n"
+                f"Best model: {model_name} with {metric_name} = {best_score:.4f}. "
+                f"See SHAP charts above for feature importance details."
+            )
 
     def _generate_local_narratives(self, model, X: pd.DataFrame,
                                     y: pd.Series, task_type: str,
@@ -786,7 +955,7 @@ class ExplainerAgent(BaseAgent):
             subplot_titles=[
                 'Top Feature Importance (SHAP)',
                 'Prediction Breakdown (Sample)',
-                'Global Narrative',
+                'Pipeline Summary',
                 'Model Info'
             ],
             specs=[
@@ -843,14 +1012,16 @@ class ExplainerAgent(BaseAgent):
                 showlegend=False
             ), row=1, col=2)
 
-        # Panel 3: Narrative
+        # Panel 3: Narrative summary (strip markdown symbols for clean table display)
         narrative = explanations.get('global_narrative', 'No narrative generated.')
-        # Truncate for table display
-        narrative_lines = narrative.split('.')[:6]
+        import re as _re
+        # Remove markdown bold (**text**) and heading markers for clean table text
+        clean_narrative = _re.sub(r'\*\*(.+?)\*\*', r'\1', narrative)
+        narrative_lines = clean_narrative.split('.')[:6]
         narrative_display = '.<br>'.join(narrative_lines) + '.'
 
         fig.add_trace(go.Table(
-            header=dict(values=['<b>AI-Generated Explanation</b>'],
+            header=dict(values=['<b>Pipeline Narrative (Summary)</b>'],
                        fill_color='#2563EB', font=dict(color='white', size=13)),
             cells=dict(values=[[narrative_display]],
                       fill_color='#1e293b', font=dict(color='#e2e8f0', size=11),

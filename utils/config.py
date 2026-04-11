@@ -10,10 +10,9 @@ class Config:
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
     
-    # LLM
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    # LLM (Groq)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     
     # ML Settings
     CV_FOLDS: int = int(os.getenv("CV_FOLDS", "5"))

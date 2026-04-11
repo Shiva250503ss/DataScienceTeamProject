@@ -1,7 +1,7 @@
 """
 LLMChatEngine
 =============
-Sends user questions + rich dataset context to the LLM (Groq / Ollama) and
+Sends user questions + rich dataset context to the LLM (Groq) and
 returns ChatResponse objects containing markdown text + renderable ChartSpec
 objects.
 

@@ -9,7 +9,10 @@ import dataclasses
 import hashlib
 import sys
 from pathlib import Path
+from typing import List, Optional
 
+import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 # ── Ensure ai_dashboard_generator is importable ──────────────────────────────
@@ -64,16 +67,295 @@ def _next_key() -> str:
     return f"dg_chart_{_dg_chart_counter}"
 
 
+# ── Custom Chart Builder ──────────────────────────────────────────────────────
+
+_CHART_COLORS: dict = {
+    "Default":         None,
+    "Pastel":          px.colors.qualitative.Pastel,
+    "Bold":            px.colors.qualitative.Bold,
+    "Vivid":           px.colors.qualitative.Vivid,
+    "Colorblind Safe": px.colors.qualitative.Safe,
+    "Ocean Blues":     px.colors.sequential.Blues,
+    "Warm Sunset":     px.colors.sequential.Sunset,
+}
+
+
+def _col_type(col: str, df: pd.DataFrame, profile) -> str:
+    """Classify a column as 'datetime', 'numeric', or 'categorical'."""
+    if col in profile.datetime_columns:
+        return "datetime"
+    try:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            return "datetime"
+        if pd.api.types.is_numeric_dtype(df[col]):
+            return "numeric"
+    except Exception:
+        pass
+    return "categorical"
+
+
+def _chart_types_for(x: Optional[str], y: Optional[str],
+                     df: pd.DataFrame, profile) -> List[str]:
+    """Return the ordered list of sensible chart types for the chosen (x, y) pair."""
+    if not x:
+        return ["— pick an X-axis first —"]
+
+    xk = _col_type(x, df, profile)
+    yk = _col_type(y, df, profile) if y else None
+
+    if xk == "datetime":
+        if yk == "numeric":
+            return ["Line", "Area", "Bar"]
+        return ["Line (count)", "Bar (count)"]
+
+    if xk == "categorical":
+        if yk == "numeric":
+            return ["Bar", "Horizontal Bar", "Pie", "Box", "Violin", "Funnel"]
+        return ["Bar (count)", "Pie (count)"]
+
+    # xk == "numeric"
+    if yk == "numeric":
+        return ["Scatter", "Line", "Bar", "Box", "Violin"]
+    if yk == "categorical":
+        return ["Box", "Violin", "Strip"]
+    return ["Histogram", "Box", "Violin"]
+
+
+def _build_custom_chart(
+    df: pd.DataFrame,
+    x: str,
+    y: Optional[str],
+    chart_type: str,
+    color_seq: Optional[list],
+    group_by: Optional[str],
+    profile,
+):
+    """Build and return a Plotly figure from the Custom Chart Builder selections."""
+    ct = chart_type.lower()
+
+    # Build title
+    title_parts = [chart_type, x]
+    if y:
+        title_parts.append(f"vs {y}")
+    if group_by:
+        title_parts.append(f"by {group_by}")
+    title = " · ".join(title_parts)
+
+    kw: dict = {"title": title}
+    if color_seq:
+        kw["color_discrete_sequence"] = color_seq
+
+    # ── Histogram ─────────────────────────────────────────────────────────────
+    if ct == "histogram":
+        cols = [x] + ([group_by] if group_by else [])
+        w = df[cols].copy()
+        w[x] = pd.to_numeric(w[x], errors="coerce")
+        w = w.dropna(subset=[x])
+        if group_by:
+            kw["color"] = group_by
+        return px.histogram(w, x=x, nbins=30, **kw)
+
+    # ── Scatter ────────────────────────────────────────────────────────────────
+    if ct == "scatter":
+        if not y:
+            raise ValueError("Scatter requires a Y-axis column.")
+        cols = [x, y] + ([group_by] if group_by else [])
+        w = df[cols].copy()
+        w[x] = pd.to_numeric(w[x], errors="coerce")
+        w[y] = pd.to_numeric(w[y], errors="coerce")
+        w = w.dropna(subset=[x, y])
+        if group_by:
+            kw["color"] = group_by
+        return px.scatter(w, x=x, y=y, **kw)
+
+    # ── Box / Violin / Strip ───────────────────────────────────────────────────
+    if ct in ("box", "violin", "strip"):
+        target = y if y else x
+        cols = [target] + ([group_by] if group_by else [])
+        w = df[cols].dropna(subset=[target]).copy()
+        if group_by:
+            kw["color"] = group_by
+        if ct == "box":
+            return px.box(w, x=group_by, y=target, **kw)
+        if ct == "violin":
+            return px.violin(w, x=group_by, y=target, **kw)
+        return px.strip(w, x=group_by, y=target, **kw)
+
+    # ── Pie / Pie (count) ──────────────────────────────────────────────────────
+    if ct in ("pie", "pie (count)"):
+        pkw = {"title": title}   # pie ignores color_discrete_sequence
+        w = df[[x]].dropna(subset=[x]).copy()
+        if y and ct == "pie":
+            w[y] = pd.to_numeric(df.loc[w.index, y], errors="coerce")
+            w = w.dropna(subset=[y])
+            agg = w.groupby(x, as_index=False)[y].sum().nlargest(15, y)
+            return px.pie(agg, names=x, values=y, **pkw)
+        result = w[x].value_counts().head(15).reset_index()
+        result.columns = [x, "_count"]
+        return px.pie(result, names=x, values="_count", **pkw)
+
+    # ── Bar / Horizontal Bar / Bar (count) / Funnel ────────────────────────────
+    if ct in ("bar", "horizontal bar", "bar (count)", "funnel"):
+        if y and ct != "bar (count)":
+            cols = [x, y] + ([group_by] if group_by else [])
+            w = df[cols].copy()
+            w[y] = pd.to_numeric(w[y], errors="coerce")
+            w = w.dropna(subset=[x, y])
+            if group_by:
+                agg = w.groupby([x, group_by], as_index=False)[y].sum()
+                kw["color"] = group_by
+            else:
+                agg = w.groupby(x, as_index=False)[y].sum()
+                agg = agg.sort_values(y, ascending=False).head(30)
+            if ct == "funnel":
+                return px.funnel(agg, x=y, y=x, **kw)
+            if ct == "horizontal bar":
+                return px.bar(agg, x=y, y=x, orientation="h", text_auto=True, **kw)
+            return px.bar(agg, x=x, y=y, text_auto=True, **kw)
+        else:  # count
+            cols = [x] + ([group_by] if group_by else [])
+            w = df[cols].dropna(subset=[x]).copy()
+            if group_by:
+                result = w.groupby([x, group_by]).size().reset_index(name="_count")
+                kw["color"] = group_by
+            else:
+                result = w[x].value_counts().head(30).reset_index()
+                result.columns = [x, "_count"]
+            return px.bar(result, x=x, y="_count", text_auto=True, **kw)
+
+    # ── Line / Area (datetime or numeric x) ───────────────────────────────────
+    if ct in ("line", "area", "line (count)"):
+        xk = _col_type(x, df, profile)
+        if xk == "datetime":
+            w = df.copy()
+            w[x] = pd.to_datetime(w[x], errors="coerce")
+            w = w.dropna(subset=[x])
+            w["_period"] = w[x].dt.to_period("M").astype(str)
+            if y and ct != "line (count)":
+                w[y] = pd.to_numeric(w[y], errors="coerce")
+                w = w.dropna(subset=[y])
+                grp_cols = ["_period"] + ([group_by] if group_by else [])
+                agg = (w.groupby(grp_cols, as_index=False)[y]
+                         .sum().sort_values("_period"))
+                agg.rename(columns={"_period": x}, inplace=True)
+                if group_by:
+                    kw["color"] = group_by
+                if ct == "area":
+                    return px.area(agg, x=x, y=y, **kw)
+                return px.line(agg, x=x, y=y, markers=True, **kw)
+            else:
+                result = (w.groupby("_period").size()
+                           .reset_index(name="_count")
+                           .sort_values("_period"))
+                result.rename(columns={"_period": x}, inplace=True)
+                return px.line(result, x=x, y="_count", markers=True, **kw)
+        else:  # numeric x
+            if not y:
+                raise ValueError("Line/Area requires a Y-axis column for numeric X.")
+            cols = [x, y] + ([group_by] if group_by else [])
+            w = df[cols].copy()
+            w[x] = pd.to_numeric(w[x], errors="coerce")
+            w[y] = pd.to_numeric(w[y], errors="coerce")
+            w = w.dropna(subset=[x, y]).sort_values(x)
+            if group_by:
+                kw["color"] = group_by
+            if ct == "area":
+                return px.area(w, x=x, y=y, **kw)
+            return px.line(w, x=x, y=y, markers=True, **kw)
+
+    raise ValueError(f"Unsupported chart type: {chart_type!r}")
+
+
+def _render_custom_chart_builder(enriched_df: pd.DataFrame, profile) -> None:
+    """Render the 5-control Custom Chart Builder section."""
+    st.divider()
+    st.subheader("🛠️ Custom Chart Builder")
+    st.caption(
+        "Choose your axes, then pick a chart type, color theme, and optional group-by column."
+    )
+
+    all_cols = list(enriched_df.columns)
+
+    # ── 5 selectboxes in a single row ─────────────────────────────────────────
+    c1, c2, c3, c4, c5 = st.columns(5)
+
+    with c1:
+        st.markdown("**X-Axis**")
+        x_raw = st.selectbox(
+            "X-Axis", ["— select —"] + all_cols,
+            key="cb_x", label_visibility="collapsed"
+        )
+
+    with c2:
+        st.markdown("**Y-Axis**")
+        y_raw = st.selectbox(
+            "Y-Axis", ["None (count)"] + all_cols,
+            key="cb_y", label_visibility="collapsed"
+        )
+
+    x_col = x_raw if x_raw != "— select —" else None
+    y_col = y_raw if y_raw != "None (count)" else None
+
+    # Dynamic chart types based on X / Y column types
+    available_types = _chart_types_for(x_col, y_col, enriched_df, profile)
+
+    with c3:
+        st.markdown("**Chart Type**")
+        chart_type = st.selectbox(
+            "Chart Type", available_types,
+            key="cb_type", label_visibility="collapsed"
+        )
+
+    with c4:
+        st.markdown("**Color Theme**")
+        color_name = st.selectbox(
+            "Color Theme", list(_CHART_COLORS.keys()),
+            key="cb_color", label_visibility="collapsed"
+        )
+        color_seq = _CHART_COLORS[color_name]
+
+    with c5:
+        st.markdown("**Group By**")
+        groupby_candidates = [
+            c for c in all_cols
+            if c not in (x_col, y_col)
+            and enriched_df[c].dtype == object
+            and enriched_df[c].nunique() <= 30
+        ]
+        group_raw = st.selectbox(
+            "Group By", ["None"] + groupby_candidates,
+            key="cb_groupby", label_visibility="collapsed"
+        )
+        group_by = group_raw if group_raw != "None" else None
+
+    # ── Render chart ──────────────────────────────────────────────────────────
+    if x_col and not chart_type.startswith("—"):
+        try:
+            fig = _build_custom_chart(
+                df=enriched_df,
+                x=x_col,
+                y=y_col,
+                chart_type=chart_type,
+                color_seq=color_seq,
+                group_by=group_by,
+                profile=profile,
+            )
+            st.plotly_chart(fig, use_container_width=True, key=_next_key())
+        except Exception as exc:
+            st.warning(f"Could not render chart: {exc}")
+    else:
+        st.info("Select an X-axis column above to build your chart.")
+
+
 def render() -> None:
     """Render the full AI Dashboard Generator UI inside the current Streamlit tab."""
 
-    # ── Groq credentials from Streamlit secrets (optional) ───────────────────
-    try:
-        _groq_key   = st.secrets.get("GROQ_API_KEY", "")
-        _groq_model = st.secrets.get("GROQ_DEFAULT_MODEL", "llama-3.1-8b-instant")
-    except Exception:
-        _groq_key   = ""
-        _groq_model = "llama-3.3-70b-versatile"
+    # ── Groq credentials from .env / environment ─────────────────────────────
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    _groq_key   = os.getenv("GROQ_API_KEY", "")
+    _groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     init_session_state(st)
 
@@ -199,7 +481,7 @@ def render() -> None:
 
         provider = st.selectbox(
             "Provider",
-            ["None (rule-based)", "Groq (free API)", "Ollama (free, local)"],
+            ["None (rule-based)", "Groq (free API)"],
             key="dg_provider",
         )
 
@@ -229,28 +511,6 @@ def render() -> None:
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Groq error: {exc}")
-
-        elif provider == "Ollama (free, local)":
-            ollama_model = st.text_input(
-                "Model", value="llama3.2", help="Run: ollama pull llama3.2",
-                key="dg_ollama_model",
-            )
-            if st.button("Apply to Dashboard", use_container_width=True, key="dg_apply_ollama"):
-                from services.llm_clients import OllamaClient
-                _tmp = OllamaClient(model=ollama_model)
-                n = len(profile.numeric_columns) + len(profile.categorical_columns)
-                with st.spinner(f"Analyzing {n} columns with Ollama…"):
-                    try:
-                        new_edf, new_spec = DashboardGenerator.generate(
-                            df, profile, llm_client=_tmp, llm_model=ollama_model
-                        )
-                        st.session_state.enriched_df    = new_edf
-                        st.session_state.dashboard_spec = new_spec
-                        st.session_state.llm_enhanced   = True
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"Ollama error: {exc}")
-                        st.caption("Is Ollama running? Start it with: ollama serve")
 
         if st.session_state.get("llm_enhanced"):
             st.success("Dashboard: LLM enhanced ✓")
@@ -284,6 +544,9 @@ def render() -> None:
             st.plotly_chart(fig, use_container_width=True, key=_next_key())
         except Exception as exc:
             st.warning(f"Could not build chart '{spec.title}': {exc}")
+
+    # ── Custom Chart Builder ──────────────────────────────────────────────────
+    _render_custom_chart_builder(enriched_df, profile)
 
     # ── Chat interface ────────────────────────────────────────────────────────
     st.divider()

@@ -32,23 +32,6 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  # Ollama LLM
-  ollama:
-    image: ollama/ollama:latest
-    container_name: datapilot-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
 volumes:
   postgres_data:
   qdrant_data:
-  ollama_data:

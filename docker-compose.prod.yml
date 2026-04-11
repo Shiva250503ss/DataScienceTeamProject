@@ -6,8 +6,7 @@
 #   2. postgres    — Metadata database
 #   3. redis       — Cache & Celery broker
 #   4. qdrant      — Vector DB for embeddings
-#   5. ollama      — Local LLM server
-#   6. worker      — Celery background worker (optional)
+#   5. worker      — Celery background worker (optional)
 # ============================================================
 
 version: "3.9"
@@ -27,8 +26,8 @@ services:
       - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
     volumes:
       - app-output:/app/output
       - rl-models:/app/rl_selector/models
@@ -37,8 +36,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
     restart: unless-stopped
     networks:
       - datapilot
@@ -93,25 +90,6 @@ services:
     networks:
       - datapilot
 
-  # ── Ollama (LLM Server) ────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: datapilot-ollama
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    restart: unless-stopped
-    networks:
-      - datapilot
-
   # ── Celery Worker (optional, for async jobs) ────────────────
   worker:
     build:
@@ -127,14 +105,14 @@ services:
       - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
     volumes:
       - app-output:/app/output
       - rl-models:/app/rl_selector/models
     depends_on:
       - redis
       - postgres
-      - ollama
     restart: unless-stopped
     profiles:
       - worker  # Only starts with: docker compose --profile worker up
@@ -146,7 +124,6 @@ volumes:
   pg-data:
   redis-data:
   qdrant-data:
-  ollama-models:
   app-output:
   rl-models:
 

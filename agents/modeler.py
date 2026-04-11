@@ -236,60 +236,76 @@ class ModelerAgent(BaseAgent):
             ensemble_score = float(np.mean(list(cv_scores.values())))
 
         # =====================================================================
-        # Step 5: Fit final ensemble on ALL data
+        # Step 5: Fit ensemble on ALL data
         # =====================================================================
-        self.log("Fitting final ensemble on full dataset...")
+        self.log("Fitting ensemble on full dataset...")
         try:
             ensemble_model.fit(X, y)
         except Exception as e:
-            # Ensemble fit failed — use best single model as the "ensemble"
-            self.log(f"Ensemble fit failed ({e}), falling back to best single model")
+            # Ensemble fit failed — fall back to best single model score for comparison
+            self.log(f"Ensemble fit failed ({e}), will compare single models only")
             best_fb = max(cv_scores, key=cv_scores.get)
             ensemble_model = trained_models[best_fb]
             ensemble_score = cv_scores[best_fb]
-        
-        # Determine best single model
-        best_model_name = max(cv_scores, key=cv_scores.get)
-        best_model_score = cv_scores[best_model_name]
-        
+
+        # =====================================================================
+        # Step 5b: Select the best overall model (compare all 4: 3 single + ensemble)
+        # =====================================================================
+        all_scores = {**cv_scores, 'Ensemble': ensemble_score}
+        best_model_name = max(all_scores, key=all_scores.get)
+        best_model_score = all_scores[best_model_name]
+
+        if best_model_name == 'Ensemble':
+            final_model = ensemble_model
+            self.log(f"Ensemble wins ({ensemble_score:.4f}) — using as final model.")
+        else:
+            # A single model beat the ensemble; individual models are already
+            # fitted on the full dataset inside _train_model(), so use directly.
+            final_model = trained_models[best_model_name]
+            self.log(
+                f"{best_model_name} wins "
+                f"({best_model_score:.4f} > Ensemble {ensemble_score:.4f}) "
+                f"— using as final prediction model."
+            )
+
         self.log(f"\n{'='*50}")
         self.log(f"RESULTS:")
-        self.log(f"  Best single model: {best_model_name} ({best_model_score:.4f})")
-        self.log(f"  Ensemble score:    {ensemble_score:.4f}")
-        self.log(f"  Improvement:       {ensemble_score - best_model_score:+.4f}")
+        for name, score in sorted(all_scores.items(), key=lambda x: x[1], reverse=True):
+            marker = " ← BEST (final model)" if name == best_model_name else ""
+            self.log(f"  {name}: {score:.4f}{marker}")
         self.log(f"{'='*50}")
         
         # =====================================================================
         # Step 6: Overfitting Detection
         # =====================================================================
         overfitting_analysis = self._detect_overfitting(
-            X, y, ensemble_model, task_type, ensemble_score, cv_scores
+            X, y, final_model, task_type, best_model_score, cv_scores
         )
         if overfitting_analysis.get('is_suspicious'):
             self.log(f"⚠️  OVERFITTING WARNING: {overfitting_analysis['reason']}")
-        
+
         # =====================================================================
         # Step 7: Error Analysis (which samples does the model get wrong?)
         # =====================================================================
         error_analysis = self._perform_error_analysis(
-            X, y, ensemble_model, task_type, state.get('raw_data'), state.get('target_column')
+            X, y, final_model, task_type, state.get('raw_data'), state.get('target_column')
         )
         self.log(f"Error analysis: {len(error_analysis.get('worst_samples', []))} worst predictions analyzed")
-        
+
         # =====================================================================
         # Step 8: Segment Analysis (performance by data group)
         # =====================================================================
         segment_analysis = self._perform_segment_analysis(
-            X, y, ensemble_model, task_type, state.get('raw_data'),
+            X, y, final_model, task_type, state.get('raw_data'),
             state.get('target_column'), state.get('profile_report', {}).get('column_types', {})
         )
         self.log(f"Segment analysis: tested {len(segment_analysis.get('segments', []))} segments")
-        
+
         # Update pipeline state
         state['trained_models'] = trained_models
         state['cv_scores'] = cv_scores
-        state['ensemble_model'] = ensemble_model
-        state['ensemble_score'] = ensemble_score
+        state['ensemble_model'] = final_model      # best overall model (used for predictions)
+        state['ensemble_score'] = ensemble_score   # voting ensemble's CV score (for display)
         state['best_model_name'] = best_model_name
         state['model_recommendations'] = recommendations
         state['overfitting_analysis'] = overfitting_analysis

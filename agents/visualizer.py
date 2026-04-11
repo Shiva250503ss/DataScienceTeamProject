@@ -676,27 +676,28 @@ class VisualizerAgent(BaseAgent):
         recommendations = state.get('model_recommendations', [])
 
         # --- 4.1 Model Comparison Bar Chart ---
-        model_names = list(cv_scores.keys())
-        scores = list(cv_scores.values())
-
-        # Sort by score
-        sorted_pairs = sorted(zip(model_names, scores), key=lambda x: x[1], reverse=True)
+        # Include all 4 models (3 RL-selected + ensemble) and rank by actual CV score
+        all_model_scores = {**cv_scores, '🏆 Ensemble': ensemble_score}
+        sorted_pairs = sorted(all_model_scores.items(), key=lambda x: x[1], reverse=True)
         model_names = [p[0] for p in sorted_pairs]
         scores = [p[1] for p in sorted_pairs]
 
-        # Add ensemble at the end
-        model_names.append('🏆 Ensemble')
-        scores.append(ensemble_score)
-
-        # Color: best = green, ensemble = blue, others = light
+        # Color: rank-1 = gold, rank-2 = silver, rank-3 = bronze, rank-4 = grey
+        rank_colors = [
+            self.colors['warning'],   # 1st — gold/amber
+            self.colors['info'],      # 2nd — cyan
+            self.colors['secondary'], # 3rd — purple
+            self.colors['dark'],      # 4th
+        ]
+        # Ensure ensemble is visually distinct regardless of rank
         bar_colors = []
         for i, name in enumerate(model_names):
-            if name == '🏆 Ensemble':
-                bar_colors.append(self.colors['primary'])
-            elif name == best_model_name:
-                bar_colors.append(self.colors['success'])
+            if name == best_model_name or (name == '🏆 Ensemble' and best_model_name == 'Ensemble'):
+                bar_colors.append(self.colors['success'])   # winner = green
+            elif '🏆' in name:
+                bar_colors.append(self.colors['primary'])   # ensemble (not winner) = blue
             else:
-                bar_colors.append(self.colors['info'])
+                bar_colors.append(rank_colors[min(i, len(rank_colors) - 1)])
 
         metric_name = 'Accuracy' if task_type == 'classification' else 'R² Score'
 
@@ -1024,9 +1025,10 @@ class VisualizerAgent(BaseAgent):
                 row=1, col=2
             )
 
-        # Panel 3: Model Scores Bar
+        # Panel 3: Model Scores Bar — all 4 ranked by CV score
         if cv_scores:
-            sorted_models = sorted(cv_scores.items(), key=lambda x: x[1], reverse=True)
+            all_scores_panel = {**cv_scores, '🏆 Ensemble': ensemble_score}
+            sorted_models = sorted(all_scores_panel.items(), key=lambda x: x[1], reverse=True)
             names = [m[0] for m in sorted_models]
             vals = [m[1] for m in sorted_models]
             fig.add_trace(
@@ -1043,12 +1045,14 @@ class VisualizerAgent(BaseAgent):
         n_rows = profile.get('n_rows', '?')
         n_cols = profile.get('n_cols', '?')
         size_str = f"{n_rows:,}" if isinstance(n_rows, int) else str(n_rows)
+        all_scores_for_summary = {**cv_scores, 'Ensemble': ensemble_score} if cv_scores else {}
+        best_score_overall = max(all_scores_for_summary.values()) if all_scores_for_summary else 0
         summary_rows = [
             ['Dataset Size', f"{size_str} × {n_cols}"],
             ['Task Type', task_type.title()],
             ['Target', state.get('target_column', 'N/A')],
-            ['Best Model', best_model],
-            [f'Best {metric}', f"{max(cv_scores.values()) if cv_scores else 0:.4f}"],
+            ['Final Model', best_model],
+            [f'{metric} (Final Model)', f"{best_score_overall:.4f}"],
             [f'Ensemble {metric}', f"{ensemble_score:.4f}"],
         ]
         fig.add_trace(

@@ -144,7 +144,7 @@ if st.session_state.df is not None:
 
         provider = st.selectbox(
             "Provider",
-            ["None (rule-based)", "Groq (free API)", "Ollama (free, local)"],
+            ["None (rule-based)", "Groq (free API)"],
             help="Applies LLM to improve dashboard chart quality.",
         )
 
@@ -180,29 +180,6 @@ if st.session_state.df is not None:
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Groq error: {exc}")
-
-        # ── Ollama ────────────────────────────────────────────────────────────
-        elif provider == "Ollama (free, local)":
-            ollama_model = st.text_input("Model", value="llama3.2",
-                                         help="Run: ollama pull llama3.2")
-            if st.button("Apply to Dashboard", use_container_width=True):
-                from services.llm_clients import OllamaClient
-                _tmp_client = OllamaClient(model=ollama_model)
-                n_cols = len(profile.numeric_columns) + len(profile.categorical_columns)
-                with st.spinner(f"Analyzing {n_cols} columns with Ollama…"):
-                    try:
-                        new_enriched_df, new_spec = DashboardGenerator.generate(
-                            df, profile,
-                            llm_client=_tmp_client,
-                            llm_model=ollama_model,
-                        )
-                        st.session_state.enriched_df    = new_enriched_df
-                        st.session_state.dashboard_spec = new_spec
-                        st.session_state.llm_enhanced   = True
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"Ollama error: {exc}")
-                        st.caption("Is Ollama running? Start it with: ollama serve")
 
         # ── Chat LLM status ───────────────────────────────────────────────────
         st.divider()

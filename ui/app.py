@@ -5,7 +5,7 @@ DataPilot AI Pro — Streamlit Web Interface.
 
 TWO-TAB LAYOUT:
   1. 📊 Data Insights  — AI Dashboard Generator (auto charts + chatbot)
-  2. 🤖 ML Prediction  — Full AutoML pipeline (profiling → cleaning → features → models → SHAP)
+  2. 🤖 Data Pipeline  — Full AutoML pipeline (profiling → cleaning → features → models → SHAP)
 
 Usage:
     streamlit run ui/app.py
@@ -66,25 +66,28 @@ st.markdown("""
         margin-bottom: 30px;
     }
     .success-box {
-        background: #D1FAE5;
+        background: rgba(5, 150, 105, 0.18);
         border-left: 4px solid #059669;
         padding: 15px;
         border-radius: 8px;
         margin: 10px 0;
+        color: #a7f3d0;
     }
     .info-box {
-        background: #DBEAFE;
+        background: rgba(37, 99, 235, 0.18);
         border-left: 4px solid #2563EB;
         padding: 15px;
         border-radius: 8px;
         margin: 10px 0;
+        color: #bfdbfe;
     }
     .warn-box {
-        background: #FEF3C7;
-        border-left: 4px solid #F59E0B;
+        background: rgba(217, 119, 6, 0.18);
+        border-left: 4px solid #D97706;
         padding: 15px;
         border-radius: 8px;
         margin: 10px 0;
+        color: #fde68a;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] { padding: 10px 20px; }
@@ -153,7 +156,7 @@ st.markdown(
 # TABS
 # =========================================================================
 
-tab_insights, tab_ml = st.tabs(["📊 Data Insights", "🤖 ML Prediction"])
+tab_insights, tab_ml = st.tabs(["📊 Data Insights", "🤖 Data Pipeline"])
 
 
 # =========================================================================
@@ -165,7 +168,7 @@ with tab_insights:
 
 
 # =========================================================================
-# TAB 2 — ML PREDICTION
+# TAB 2 — DATA PIPELINE
 # =========================================================================
 
 with tab_ml:
@@ -215,7 +218,7 @@ with tab_ml:
 
         st.markdown("---")
 
-        if st.button("🤖  Run ML Prediction", use_container_width=True, type="primary",
+        if st.button("🤖  Run Data Pipeline", use_container_width=True, type="primary",
                      help="Full pipeline: profiling → cleaning → features → models → SHAP/LIME"):
             output_dir = "./output"
             with st.spinner("Running full ML pipeline… (Profiling → Cleaning → Features → Models → Explanations)"):
@@ -389,18 +392,43 @@ with tab_ml:
                 vif_info = feat_report.get("vif_analysis", {})
                 if vif_info:
                     st.markdown("#### VIF Multicollinearity Analysis")
+                    threshold    = vif_info.get("threshold", 10)
+                    removed_vif  = vif_info.get("removed_features", [])
+                    final_vif    = vif_info.get("final_vif_scores", {})
+                    skip_reason  = vif_info.get("reason", "")
+                    high_vif_kept = {f: v for f, v in final_vif.items() if v > threshold}
+
                     st.markdown(
-                        f'<div class="info-box"><b>VIF</b> measures multicollinearity. '
-                        f'VIF &gt; 10 → feature should be removed. '
-                        f'Threshold: {vif_info.get("threshold", 10)}</div>',
+                        f'<div class="info-box">'
+                        f'<b>VIF</b> (Variance Inflation Factor) measures multicollinearity. '
+                        f'VIF 1–5 = fine &nbsp;|&nbsp; 5–10 = concerning &nbsp;|&nbsp; >10 = severe. '
+                        f'Threshold used: <b>{threshold}</b>. '
+                        f'High-VIF features are removed only if enough features remain to maintain predictive power.'
+                        f'</div>',
                         unsafe_allow_html=True)
-                    removed_vif = vif_info.get("removed_features", [])
+
                     if removed_vif:
                         st.markdown(f"**Removed {len(removed_vif)} features due to high VIF:**")
                         st.dataframe(pd.DataFrame(removed_vif), use_container_width=True, hide_index=True)
+                    elif skip_reason:
+                        # VIF removal was deliberately skipped (e.g. too few features)
+                        st.info(f"ℹ️ VIF removal skipped — {skip_reason}")
+                        if high_vif_kept:
+                            st.warning(
+                                f"⚠️ {len(high_vif_kept)} feature(s) have VIF > {threshold} "
+                                f"({', '.join(f'{f} = {v}' for f, v in sorted(high_vif_kept.items(), key=lambda x: x[1], reverse=True))}). "
+                                f"They are **retained** because the feature set is small — removing them would hurt prediction accuracy more than the collinearity does."
+                            )
+                    elif high_vif_kept:
+                        # Removal ran but high-VIF features survived (kept due to target correlation)
+                        st.warning(
+                            f"⚠️ {len(high_vif_kept)} feature(s) with VIF > {threshold} were kept "
+                            f"because they are highly correlated with the target variable: "
+                            + ", ".join(f"**{f}** (VIF={v:.1f})" for f, v in sorted(high_vif_kept.items(), key=lambda x: x[1], reverse=True))
+                        )
                     else:
                         st.success("All features have acceptable VIF — no multicollinearity issues.")
-                    final_vif = vif_info.get("final_vif_scores", {})
+
                     if final_vif:
                         st.markdown("#### Final VIF Scores")
                         st.dataframe(pd.DataFrame([
@@ -441,8 +469,9 @@ with tab_ml:
             if explanations:
                 narrative = explanations.get("global_narrative", "")
                 if narrative:
-                    st.markdown("### 🤖 AI-Generated Explanation")
-                    st.markdown(f'<div class="info-box">{narrative}</div>', unsafe_allow_html=True)
+                    # Render markdown directly so **bold** headers display correctly
+                    st.markdown(narrative)
+                    st.divider()
                 importance = explanations.get("shap_importance")
                 if importance is not None:
                     st.markdown("### SHAP Feature Importance")
@@ -579,7 +608,7 @@ with tab_ml:
                     except Exception as e:
                         st.error(f"Prediction failed: {e}")
             else:
-                st.info("Train a model first (click **Run ML Prediction** above).")
+                st.info("Train a model first (click **Run Data Pipeline** above).")
 
         if result.get("errors"):
             with st.expander("⚠️ Pipeline Errors & Warnings"):
@@ -589,7 +618,7 @@ with tab_ml:
     elif ml_df is None:
         st.markdown(
             '<div class="info-box">'
-            '👆 Upload a CSV file above, then click <b>Run ML Prediction</b> to get started.'
+            '👆 Upload a CSV file above, then click <b>Run Data Pipeline</b> to get started.'
             '</div>',
             unsafe_allow_html=True,
         )

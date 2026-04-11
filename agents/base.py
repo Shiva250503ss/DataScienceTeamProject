@@ -3,26 +3,26 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 import pandas as pd
-from langchain_community.llms import Ollama
+from langchain_groq import ChatGroq
 from utils.config import config
 
 
 class BaseAgent(ABC):
     """
     Base class for all AI agents in the DataPilot pipeline.
-    
+
     Every agent inherits from this class and must implement the `execute()` method.
     Provides shared functionality:
-      - LLM access via Ollama (for AI-powered reasoning)
+      - LLM access via Groq (for AI-powered reasoning)
       - Logging with agent name prefix
       - Standard execute interface that takes/returns pipeline state
     """
-    
+
     def __init__(self, name: str):
         self.name = name
-        self.llm = Ollama(
-            base_url=config.OLLAMA_BASE_URL,
-            model=config.OLLAMA_MODEL
+        self.llm = ChatGroq(
+            api_key=config.GROQ_API_KEY,
+            model_name=config.GROQ_MODEL,
         )
     
     @abstractmethod
@@ -42,14 +42,15 @@ class BaseAgent(ABC):
     def ask_llm(self, prompt: str) -> str:
         """
         Query the LLM for reasoning/explanations.
-        
+
         Args:
             prompt: The prompt string to send to the LLM.
-        
+
         Returns:
             LLM response as a string.
         """
-        return self.llm.invoke(prompt)
+        response = self.llm.invoke(prompt)
+        return response.content
     
     def log(self, message: str):
         """
