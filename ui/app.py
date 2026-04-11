@@ -104,6 +104,71 @@ for key in ['ml_uploaded_df', 'ml_file_name', 'ml_pipeline_result']:
     if key not in st.session_state:
         st.session_state[key] = None
 
+# ── Target column & model selection state ─────────────────────────────────
+if 'ml_selected_target' not in st.session_state:
+    st.session_state.ml_selected_target = None
+if 'ml_selected_algorithm' not in st.session_state:
+    st.session_state.ml_selected_algorithm = None
+
+
+# =========================================================================
+# HELPER: Detect task type from target column
+# =========================================================================
+
+def _detect_task_type(df: pd.DataFrame, target_col: str) -> str:
+    """
+    Heuristic to decide classification vs regression based on the target column.
+
+    Rules (mirrors agents/profiler.py logic):
+      • object / bool / category dtypes → classification
+      • integer with ≤20 unique values   → classification
+      • float  with ≤10 unique values    → classification
+      • otherwise                         → regression
+    """
+    col = df[target_col]
+    if col.dtype == 'object' or col.dtype == 'bool' or pd.api.types.is_categorical_dtype(col):
+        return 'classification'
+    nunique = col.nunique()
+    if pd.api.types.is_integer_dtype(col) and nunique <= 20:
+        return 'classification'
+    if pd.api.types.is_float_dtype(col) and nunique <= 10:
+        return 'classification'
+    return 'regression'
+
+
+# =========================================================================
+# MODEL CATALOGUES
+# =========================================================================
+
+CLASSIFICATION_MODELS = {
+    "Logistic Regression":            "LogisticRegression",
+    "Gaussian Naïve Bayes":           "GaussianNB",
+    "K-Nearest Neighbors (Clf)":      "KNeighborsClassifier",
+    "Support Vector Classifier":      "SVC",
+    "Decision Tree (Clf)":            "DecisionTreeClassifier",
+    "Random Forest (Clf)":            "RandomForestClassifier",
+    "Extra Trees (Clf)":              "ExtraTreesClassifier",
+    "Gradient Boosting (Clf)":        "GradientBoostingClassifier",
+    "XGBoost (Clf)":                  "XGBClassifier",
+    "LightGBM (Clf)":                "LGBMClassifier",
+    "CatBoost (Clf)":                "CatBoostClassifier",
+}
+
+REGRESSION_MODELS = {
+    "Ridge Regression":               "Ridge",
+    "Lasso Regression":               "Lasso",
+    "ElasticNet":                     "ElasticNet",
+    "Support Vector Regressor":       "SVR",
+    "K-Nearest Neighbors (Reg)":      "KNeighborsRegressor",
+    "Decision Tree (Reg)":            "DecisionTreeRegressor",
+    "Random Forest (Reg)":            "RandomForestRegressor",
+    "Extra Trees (Reg)":              "ExtraTreesRegressor",
+    "Gradient Boosting (Reg)":        "GradientBoostingRegressor",
+    "XGBoost (Reg)":                  "XGBRegressor",
+    "LightGBM (Reg)":                "LGBMRegressor",
+    "CatBoost (Reg)":                "CatBoostRegressor",
+}
+
 
 # =========================================================================
 # HELPER: Display charts (ML tab)
@@ -203,23 +268,119 @@ with tab_ml:
             c3.metric("Missing Cells", f"{ml_df.isnull().sum().sum():,}")
             c4.metric("Duplicates", f"{ml_df.duplicated().sum():,}")
 
+        # ==================================================================
+        # 🎯 TARGET COLUMN SELECTOR  (mandatory — scrollable list)
+        # ==================================================================
         st.markdown("---")
-        st.markdown("### Settings")
+        st.markdown("### 🎯 Select Target Column")
+        st.markdown(
+            '<div class="info-box">'
+            'Choose the column you want to predict. '
+            'This is <b>required</b> before running the pipeline.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
-        with st.expander("⚙️ ML Settings", expanded=False):
-            target_col = st.text_input(
-                "Target Column (leave blank for auto-detection)",
-                value="",
-                help="The column you want to predict.",
-                key="ml_target_col",
+        # Custom CSS for the scrollable column picker
+        st.markdown("""
+        <style>
+            /* scrollable radio group container */
+            div[data-testid="stRadio"] > div[role="radiogroup"] {
+                max-height: 260px;
+                overflow-y: auto;
+                border: 1px solid rgba(250,250,250,0.12);
+                border-radius: 10px;
+                padding: 8px 12px;
+                background: rgba(255,255,255,0.03);
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        column_list = list(ml_df.columns)
+        target_col = st.radio(
+            "Select the target column from your dataset:",
+            options=column_list,
+            index=None,          # nothing pre-selected → forces explicit choice
+            key="ml_target_radio",
+            help="Scroll through the list and pick the column you want the model to predict.",
+        )
+
+        # Persist selection
+        st.session_state.ml_selected_target = target_col
+
+        # ==================================================================
+        # After target is chosen → detect task type & show model picker
+        # ==================================================================
+        detected_task_type = None
+        user_selected_model = None   # None ⇒ PPO auto-selects
+
+        if target_col is not None:
+            detected_task_type = _detect_task_type(ml_df, target_col)
+
+            # ── Show detected task type ──
+            task_emoji = "📂" if detected_task_type == "classification" else "📈"
+            task_label = detected_task_type.title()
+            st.markdown(
+                f'<div class="success-box">'
+                f'{task_emoji} Detected task type: <b>{task_label}</b> '
+                f'(based on column <code>{target_col}</code> — '
+                f'{ml_df[target_col].nunique()} unique values, dtype: {ml_df[target_col].dtype})'
+                f'</div>',
+                unsafe_allow_html=True,
             )
-            if not target_col.strip():
-                target_col = None
 
+            # ── Model Selection ──
+            st.markdown("---")
+            st.markdown("### 🧠 Select ML Algorithm")
+            st.markdown(
+                '<div class="info-box">'
+                'Pick a specific algorithm or let the <b>PPO Reinforcement Learning agent</b> '
+                'automatically select the best model for your data. '
+                'If you\'re unsure, the auto-select option is recommended!'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            models_dict = (CLASSIFICATION_MODELS if detected_task_type == "classification"
+                           else REGRESSION_MODELS)
+
+            model_display_names = ["🤖 Auto-Select (PPO picks the best model)"] + list(models_dict.keys())
+
+            chosen_display = st.selectbox(
+                f"Available {task_label} Models:",
+                options=model_display_names,
+                index=0,
+                key="ml_model_selectbox",
+                help=(
+                    "Choose 'Auto-Select' to let the PPO Reinforcement Learning agent "
+                    "analyse your data and pick the top models automatically. "
+                    "Or pick a specific algorithm if you know what you want."
+                ),
+            )
+
+            if chosen_display != model_display_names[0]:
+                user_selected_model = models_dict[chosen_display]
+                st.info(f"✅ You selected **{chosen_display}** (`{user_selected_model}`)")
+            else:
+                st.info("🤖 PPO will analyse your data's meta-features and select the best models automatically.")
+
+        # ==================================================================
+        # 🚀 RUN PIPELINE BUTTON (disabled until target is selected)
+        # ==================================================================
         st.markdown("---")
 
-        if st.button("🤖  Run Data Pipeline", use_container_width=True, type="primary",
-                     help="Full pipeline: profiling → cleaning → features → models → SHAP/LIME"):
+        pipeline_disabled = (target_col is None)
+
+        if pipeline_disabled:
+            st.warning("⬆️ Please select a **target column** above to enable the pipeline.")
+
+        if st.button(
+            "🚀  Run Data Pipeline",
+            use_container_width=True,
+            type="primary",
+            disabled=pipeline_disabled,
+            help="Full pipeline: profiling → cleaning → features → models → SHAP/LIME",
+        ):
             output_dir = "./output"
             with st.spinner("Running full ML pipeline… (Profiling → Cleaning → Features → Models → Explanations)"):
                 try:
@@ -229,6 +390,7 @@ with tab_ml:
                         target_column=target_col,
                         dataset_name=ml_file_name,
                         output_dir=output_dir,
+                        user_selected_model=user_selected_model,
                     )
                     st.session_state.ml_pipeline_result = result
                 except Exception as e:
@@ -665,7 +827,7 @@ with tab_ml:
     elif ml_df is None:
         st.markdown(
             '<div class="info-box">'
-            '👆 Upload a CSV file above, then click <b>Run Data Pipeline</b> to get started.'
+            '👆 Upload a CSV file above, then select your <b>target column</b> to get started.'
             '</div>',
             unsafe_allow_html=True,
         )

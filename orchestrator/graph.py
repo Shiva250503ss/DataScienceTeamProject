@@ -321,7 +321,7 @@ def compile_pipeline():
 # =========================================================================
 
 def run_ml_pipeline(df, target_column=None, dataset_name='Dataset',
-                    output_dir='./output'):
+                    output_dir='./output', user_selected_model=None):
     """
     Run the full ML pipeline on a dataset.
 
@@ -330,6 +330,9 @@ def run_ml_pipeline(df, target_column=None, dataset_name='Dataset',
         target_column: target column name (auto-detected if None)
         dataset_name: name for display
         output_dir: where to save outputs
+        user_selected_model: specific sklearn model class name chosen by
+            the user (e.g. 'RandomForestClassifier').  When *None* the
+            PPO RL agent selects the best models automatically.
 
     Returns:
         Final pipeline state dict
@@ -342,6 +345,7 @@ def run_ml_pipeline(df, target_column=None, dataset_name='Dataset',
         'dataset_name': dataset_name,
         'output_dir': output_dir,
         'run_mode': 'ml_pipeline',
+        'user_selected_model': user_selected_model,
         'errors': [],
         'logs': [],
         'stage': 'start'
@@ -352,6 +356,7 @@ def run_ml_pipeline(df, target_column=None, dataset_name='Dataset',
     print(f"  Dataset: {dataset_name}")
     print(f"  Shape: {df.shape[0]:,} rows × {df.shape[1]} cols")
     print(f"  Target: {target_column or 'Auto-detect'}")
+    print(f"  Model: {user_selected_model or 'PPO Auto-Select'}")
     print(f"{'#'*60}")
 
     start = time.time()

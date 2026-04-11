@@ -147,9 +147,17 @@ class ModelerAgent(BaseAgent):
         self.log(f"Feature matrix: {X.shape[0]} rows x {X.shape[1]} cols, all float64")
 
         # =====================================================================
-        # Step 1: Get RL recommendations (or use defaults if meta_features missing)
+        # Step 1: Get model recommendations
+        #   • If the user chose a specific model → use only that model
+        #   • Otherwise → ask the PPO RL agent for top-3 recommendations
         # =====================================================================
-        if meta_features is not None:
+        user_selected_model = state.get('user_selected_model')
+
+        if user_selected_model and user_selected_model in self.model_classes:
+            # User explicitly chose a model from the UI
+            recommendations = [(user_selected_model, 1.0)]
+            self.log(f"User selected model: {user_selected_model} — skipping RL selector")
+        elif meta_features is not None:
             try:
                 recommendations = self.rl_selector.recommend(meta_features, task_type, top_k=3)
             except Exception as e:
@@ -158,7 +166,7 @@ class ModelerAgent(BaseAgent):
         else:
             recommendations = self.rl_selector._default_recommendations(task_type)
 
-        self.log("RL recommendations:")
+        self.log("Model recommendations:")
         for model_name, confidence in recommendations:
             self.log(f"  - {model_name} (confidence: {confidence:.1%})")
 
