@@ -1,0 +1,24 @@
+{
+  "name": "covertype",
+  "category": "classification",
+  "description": "Forest cover type from cartographic variables (7 classes, UCI)",
+  "rows": 60000,
+  "features": 54,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 7,
+    "class_balance": {
+      "2": 29151,
+      "1": 22016,
+      "3": 3714,
+      "7": 2118,
+      "6": 1773,
+      "5": 962,
+      "4": 266
+    },
+    "majority_pct": 48.585
+  },
+  "openml_dataset_id": null,
+  "in_ppo_training": false
+}

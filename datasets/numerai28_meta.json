@@ -1,0 +1,19 @@
+{
+  "name": "numerai28",
+  "category": "messy_classification",
+  "description": "Numerai28.6 stock market prediction - 21 obfuscated anonymous float features, binary, balanced",
+  "rows": 60000,
+  "features": 21,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "1": 30316,
+      "0": 29684
+    },
+    "majority_pct": 50.526666666666664
+  },
+  "openml_dataset_id": 23517,
+  "in_ppo_training": false
+}

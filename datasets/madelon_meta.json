@@ -1,0 +1,19 @@
+{
+  "name": "madelon",
+  "category": "messy_classification",
+  "description": "Madelon adversarial benchmark \u2014 500 features but only 20 are informative, 480 are pure noise. Binary classification. Classic feature-noise stress test.",
+  "rows": 2600,
+  "features": 500,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "1": 1300,
+      "2": 1300
+    },
+    "majority_pct": 50.0
+  },
+  "openml_dataset_id": 1485,
+  "in_ppo_training": false
+}

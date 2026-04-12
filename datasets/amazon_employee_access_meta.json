@@ -1,0 +1,19 @@
+{
+  "name": "amazon_employee_access",
+  "category": "messy_classification",
+  "description": "Amazon employee access prediction \u2014 9 purely categorical high-cardinality features, binary, ~94% positive class (imbalanced)",
+  "rows": 32769,
+  "features": 9,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "1": 30872,
+      "0": 1897
+    },
+    "majority_pct": 94.21099209618848
+  },
+  "openml_dataset_id": 4135,
+  "in_ppo_training": false
+}

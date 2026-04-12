@@ -1,0 +1,20 @@
+{
+  "name": "eye_movements",
+  "category": "classification",
+  "description": "Eye movement patterns during reading \u2014 12 class fine-grained classification",
+  "rows": 10936,
+  "features": 27,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 3,
+    "class_balance": {
+      "1": 4262,
+      "0": 3804,
+      "2": 2870
+    },
+    "majority_pct": 38.972201901975126
+  },
+  "openml_dataset_id": 1044,
+  "in_ppo_training": false
+}

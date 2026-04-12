@@ -1,0 +1,19 @@
+{
+  "name": "nomao",
+  "category": "messy_classification",
+  "description": "Nomao place deduplication \u2014 118 features (numeric + categorical), binary, real-world entity matching with mixed data types",
+  "rows": 34465,
+  "features": 118,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "2": 24621,
+      "1": 9844
+    },
+    "majority_pct": 71.43769041056144
+  },
+  "openml_dataset_id": 1486,
+  "in_ppo_training": false
+}

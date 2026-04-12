@@ -1,0 +1,17 @@
+{
+  "name": "house_16H",
+  "category": "regression",
+  "description": "US house price median prediction (16 demographic features)",
+  "rows": 22784,
+  "features": 16,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "continuous",
+    "mean": 50074.43978230337,
+    "std": 52843.475551249336,
+    "min": 0.0,
+    "max": 500001.0
+  },
+  "openml_dataset_id": 574,
+  "in_ppo_training": false
+}

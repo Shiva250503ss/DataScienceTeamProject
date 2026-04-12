@@ -1,0 +1,17 @@
+{
+  "name": "cpu_act",
+  "category": "regression",
+  "description": "Computer system CPU activity percentage (regression)",
+  "rows": 8192,
+  "features": 21,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "continuous",
+    "mean": 83.9688720703125,
+    "std": 18.401904505037443,
+    "min": 0.0,
+    "max": 99.0
+  },
+  "openml_dataset_id": 573,
+  "in_ppo_training": false
+}
