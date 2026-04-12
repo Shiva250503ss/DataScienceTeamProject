@@ -12,7 +12,13 @@
       "Bash(python -m pip install google-genai --quiet)",
       "Bash(python -c \"import google.genai as genai; print\\('google.genai OK'\\)\")",
       "Bash(python -c ':*)",
-      "Bash(python -c \"import agents.modeler; print\\('modeler.py imports OK'\\)\")"
+      "Bash(python -c \"import agents.modeler; print\\('modeler.py imports OK'\\)\")",
+      "Bash(python -m benchmark.quick_check)",
+      "Bash(python -u -c ':*)",
+      "Bash(python -u benchmark/ppo_benchmark.py --task classification --n 20 --cv 3 --output ./benchmark/results_validation)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\shiva\\OneDrive\\Documents\\Github\\DataScienceTeamProject"
     ]
   }
 }
