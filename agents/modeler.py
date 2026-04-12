@@ -481,8 +481,9 @@ class ModelerAgent(BaseAgent):
                 'probability': True, 'C': 1.0,
                 'class_weight': 'balanced',
                 'random_state': 42,
+                'cache_size': 1000,
             },
-            'SVR': {'C': 1.0},
+            'SVR': {'C': 1.0, 'cache_size': 1000},
             'KNeighborsClassifier': {'n_neighbors': 5, 'weights': 'distance'},
             'KNeighborsRegressor': {'n_neighbors': 5, 'weights': 'distance'},
             # --- Probabilistic models ---
@@ -502,20 +503,28 @@ class ModelerAgent(BaseAgent):
         This is the biggest accuracy booster — can improve scores by 10-30%
         compared to default hyperparameters. Uses 5-fold cross-validation
         as the objective to avoid overfitting.
+
+        SVC/SVR get special treatment: fewer trials, 3-fold CV, and a
+        shorter timeout because each fit is O(n² to n³).
         """
         import optuna
 
         model_class = self.model_classes[model_name]
         scoring = 'accuracy' if task_type == 'classification' else 'r2'
 
+        # SVC / SVR are O(n²-n³) — limit trials to avoid long waits
+        is_svm = model_name in ('SVC', 'SVR')
+
         # Adapt trials to dataset size (larger = slower fits)
         n_samples = X.shape[0]
-        if n_samples > 50000:
-            n_trials, timeout = 10, 120
+        if is_svm:
+            n_trials, timeout, cv_folds = 10, 60, 3
+        elif n_samples > 50000:
+            n_trials, timeout, cv_folds = 10, 120, 5
         elif n_samples > 10000:
-            n_trials, timeout = 15, 90
+            n_trials, timeout, cv_folds = 15, 90, 5
         else:
-            n_trials, timeout = 25, 90
+            n_trials, timeout, cv_folds = 25, 90, 5
 
         # Store full param dicts keyed by trial number
         trial_params = {}
@@ -526,7 +535,7 @@ class ModelerAgent(BaseAgent):
             try:
                 model = model_class(**params)
                 cv = cross_val_score(
-                    model, X, y, cv=5, scoring=scoring, error_score=0.0
+                    model, X, y, cv=cv_folds, scoring=scoring, error_score=0.0
                 )
                 return float(cv.mean())
             except Exception:
@@ -610,12 +619,20 @@ class ModelerAgent(BaseAgent):
 
         if model_name == 'SVC':
             return {
-                'C': trial.suggest_float('C', 0.01, 100.0, log=True),
+                'C': trial.suggest_float('C', 0.1, 50.0, log=True),
                 'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
                 'class_weight': trial.suggest_categorical(
                     'class_weight', ['balanced', None]
                 ),
                 'probability': True, 'random_state': 42,
+                'cache_size': 1000,   # MB — larger cache = faster kernel computations
+            }
+
+        if model_name == 'SVR':
+            return {
+                'C': trial.suggest_float('C', 0.1, 50.0, log=True),
+                'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
+                'cache_size': 1000,
             }
 
         if model_name == 'SVR':

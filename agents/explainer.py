@@ -307,12 +307,12 @@ class ExplainerAgent(BaseAgent):
             Tuple of (shap_values array, importance DataFrame) or None
         """
         try:
-            # Use a background sample for efficiency (max 200 rows)
-            n_background = min(200, len(X))
-            background = X.sample(n=n_background, random_state=42)
-
             # Choose the right SHAP explainer
             model_type = type(model).__name__
+
+            # Slow models (O(n²+) per predict call) need aggressive sample limits
+            slow_model_types = ('SVC', 'SVR', 'KNeighborsClassifier', 'KNeighborsRegressor')
+            is_slow_model = model_type in slow_model_types
 
             tree_model_types = (
                 'XGBClassifier', 'XGBRegressor',
@@ -340,15 +340,27 @@ class ExplainerAgent(BaseAgent):
                     X = X_explain
             else:
                 # Kernel SHAP — model-agnostic but slower
-                # Use a smaller sample for Kernel SHAP
-                n_explain = min(100, len(X))
+                # For slow models (SVC/SVR/KNN): use far fewer samples
+                if is_slow_model:
+                    n_background = min(30, len(X))
+                    n_explain = min(30, len(X))
+                    nsamples = 50       # perturbations per sample — fast enough for SVR
+                    self.log(f"  Using fast SHAP settings for {model_type} "
+                             f"(bg={n_background}, explain={n_explain}, nsamples={nsamples})")
+                else:
+                    n_background = min(100, len(X))
+                    n_explain = min(100, len(X))
+                    nsamples = 'auto'   # SHAP default
+
+                background = shap.kmeans(X, min(n_background, len(X)))
                 X_explain = X.sample(n=n_explain, random_state=42)
+
                 explainer = shap.KernelExplainer(
                     model.predict_proba if hasattr(model, 'predict_proba') and task_type == 'classification'
                     else model.predict,
                     background
                 )
-                shap_values = explainer.shap_values(X_explain)
+                shap_values = explainer.shap_values(X_explain, nsamples=nsamples)
                 X = X_explain  # Use the smaller sample for charts
 
             # Handle multi-class SHAP values
