@@ -1,0 +1,23 @@
+{
+  "name": "car_evaluation",
+  "category": "classification",
+  "description": "Car evaluation: 6 ordinal text features (buying, maint, doors, persons, lug_boot, safety) \u2014 4 acceptability classes",
+  "rows": 1728,
+  "features": 6,
+  "categorical_features": 6,
+  "numeric_features": 0,
+  "missing_pct": 0.0,
+  "openml_dataset_id": 21,
+  "in_ppo_training": false,
+  "target": {
+    "type": "categorical",
+    "n_classes": 4,
+    "class_balance": {
+      "unacc": 1210,
+      "acc": 384,
+      "good": 69,
+      "vgood": 65
+    },
+    "majority_pct": 70.0
+  }
+}

@@ -845,6 +845,103 @@ class VisualizerAgent(BaseAgent):
         visuals['model_ranking_table'] = fig
         self._save_figure(fig, viz_dir, 'model_ranking_table')
 
+        # --- 4.6 Comprehensive Metrics Visualization ---
+        comp_metrics = state.get('comprehensive_metrics', {})
+        if comp_metrics and 'error' not in comp_metrics:
+            if task_type == 'classification':
+                # Radar chart for classification metrics
+                metric_names = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
+                metric_vals = []
+                for m in metric_names:
+                    val = comp_metrics.get(m, 0)
+                    metric_vals.append(float(val) if isinstance(val, (int, float)) else 0)
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatterpolar(
+                    r=metric_vals + [metric_vals[0]],
+                    theta=metric_names + [metric_names[0]],
+                    fill='toself',
+                    fillcolor='rgba(37, 99, 235, 0.25)',
+                    line=dict(color=self.colors['primary'], width=3),
+                    name='Model Metrics',
+                    text=[f'{v:.4f}' for v in metric_vals] + [f'{metric_vals[0]:.4f}'],
+                    textposition='top center'
+                ))
+                fig.update_layout(
+                    polar=dict(
+                        radialaxis=dict(visible=True, range=[0, 1],
+                                        tickfont=dict(size=11)),
+                        angularaxis=dict(tickfont=dict(size=13))
+                    ),
+                    title=dict(
+                        text='Classification Metrics Overview',
+                        font=dict(size=20)
+                    ),
+                    template=self.template, height=520,
+                    showlegend=False,
+                    annotations=[dict(
+                        text=(
+                            f"Accuracy: {comp_metrics.get('Accuracy', 'N/A')}<br>"
+                            f"Precision: {comp_metrics.get('Precision', 'N/A')}<br>"
+                            f"Recall: {comp_metrics.get('Recall', 'N/A')}<br>"
+                            f"F1-Score: {comp_metrics.get('F1-Score', 'N/A')}<br>"
+                            f"ROC-AUC: {comp_metrics.get('ROC-AUC', 'N/A')}"
+                        ),
+                        x=0.98, y=-0.05, xref='paper', yref='paper',
+                        showarrow=False,
+                        font=dict(size=11, color='#94a3b8'),
+                        align='right'
+                    )]
+                )
+                visuals['comprehensive_metrics'] = fig
+                self._save_figure(fig, viz_dir, 'comprehensive_metrics')
+
+            else:
+                # Bar chart for regression metrics
+                metric_names = ['R²', 'MAE', 'MSE', 'RMSE']
+                metric_vals = [
+                    float(comp_metrics.get(m, 0)) for m in metric_names
+                ]
+
+                bar_colors = [
+                    self.colors['primary'],    # R²
+                    self.colors['warning'],    # MAE
+                    self.colors['danger'],     # MSE
+                    self.colors['secondary'],  # RMSE
+                ]
+
+                fig = go.Figure(data=[go.Bar(
+                    x=metric_names,
+                    y=metric_vals,
+                    marker_color=bar_colors,
+                    text=[f'{v:.4f}' for v in metric_vals],
+                    textposition='auto',
+                    textfont=dict(size=14, color='white'),
+                    width=0.6
+                )])
+                fig.update_layout(
+                    title=dict(
+                        text='Regression Metrics Overview',
+                        font=dict(size=20)
+                    ),
+                    yaxis_title='Score',
+                    template=self.template, height=500,
+                    xaxis=dict(tickfont=dict(size=14)),
+                    annotations=[dict(
+                        text=(
+                            f"R²: {comp_metrics.get('R²', 'N/A')}  |  "
+                            f"MAE: {comp_metrics.get('MAE', 'N/A')}  |  "
+                            f"MSE: {comp_metrics.get('MSE', 'N/A')}  |  "
+                            f"RMSE: {comp_metrics.get('RMSE', 'N/A')}"
+                        ),
+                        x=0.5, y=1.08, xref='paper', yref='paper',
+                        showarrow=False,
+                        font=dict(size=12, color='#94a3b8')
+                    )]
+                )
+                visuals['comprehensive_metrics'] = fig
+                self._save_figure(fig, viz_dir, 'comprehensive_metrics')
+
         return visuals
 
     # =========================================================================

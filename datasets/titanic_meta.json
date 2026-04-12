@@ -1,0 +1,21 @@
+{
+  "name": "titanic",
+  "category": "classification",
+  "description": "Titanic survival: passenger class, sex, age, cabin, port of embarkation \u2014 classic mixed categorical+numeric",
+  "rows": 1309,
+  "features": 13,
+  "categorical_features": 7,
+  "numeric_features": 6,
+  "missing_pct": 22.65,
+  "openml_dataset_id": 40945,
+  "in_ppo_training": false,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "0": 809,
+      "1": 500
+    },
+    "majority_pct": 61.8
+  }
+}

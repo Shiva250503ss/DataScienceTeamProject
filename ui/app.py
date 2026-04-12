@@ -12,8 +12,10 @@ Usage:
 """
 
 import os
+import re
 import sys
 import pandas as pd
+import numpy as np
 import streamlit as st
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -115,17 +117,59 @@ if 'ml_selected_algorithm' not in st.session_state:
 # HELPER: Detect task type from target column
 # =========================================================================
 
+# Regex to strip common non-numeric formatting characters
+_NUMERIC_NOISE_RE = re.compile(r'[$€£¥₹₩₫¢,%\s]')
+
+
+def _try_coerce_to_numeric(series: pd.Series) -> pd.Series:
+    """
+    Attempt to coerce a string Series to numeric by stripping common
+    formatting characters (currency symbols, commas, %, whitespace, etc.).
+    Returns the original series unchanged if <80% of values parse successfully.
+    """
+    if series.dtype != 'object':
+        return series
+
+    cleaned = series.dropna().astype(str)
+    # Quick reject: no digits in the data
+    if cleaned.str.contains(r'\d', regex=True).sum() < len(cleaned) * 0.5:
+        return series
+
+    # Strip formatting noise
+    stripped = cleaned.str.replace(_NUMERIC_NOISE_RE, '', regex=True)
+    # Handle parenthesised negatives: (500) -> -500
+    mask = stripped.str.match(r'^\((.+)\)$', na=False)
+    stripped = stripped.where(~mask, '-' + stripped.str.replace(r'[()]', '', regex=True))
+    # Strip trailing/leading alphabetic characters (units like kg, lbs, USD)
+    stripped = stripped.str.replace(r'[a-zA-Z]+$', '', regex=True)
+    stripped = stripped.str.replace(r'^[a-zA-Z]+', '', regex=True)
+
+    numeric = pd.to_numeric(stripped, errors='coerce')
+    if numeric.notna().sum() >= len(cleaned) * 0.80:
+        return numeric
+    return series
+
+
 def _detect_task_type(df: pd.DataFrame, target_col: str) -> str:
     """
     Heuristic to decide classification vs regression based on the target column.
 
     Rules (mirrors agents/profiler.py logic):
+      • First, try to coerce "disguised numeric" strings (e.g. "$1,234.56")
+        to actual numbers so they are not misclassified as categorical.
       • object / bool / category dtypes → classification
       • integer with ≤20 unique values   → classification
       • float  with ≤10 unique values    → classification
       • otherwise                         → regression
     """
     col = df[target_col]
+
+    # Try coercing string columns that contain formatted numbers
+    if col.dtype == 'object':
+        coerced = _try_coerce_to_numeric(col)
+        if pd.api.types.is_numeric_dtype(coerced):
+            col = coerced
+
     if col.dtype == 'object' or col.dtype == 'bool' or pd.api.types.is_categorical_dtype(col):
         return 'classification'
     nunique = col.nunique()
@@ -414,10 +458,10 @@ with tab_ml:
                     f"{result.get('profile_report', {}).get('quality_score', 0)}/100")
 
         (tab_models, tab_profile, tab_cleaning, tab_features,
-         tab_viz, tab_explain, tab_errors, tab_segments, tab_predict) = st.tabs([
+         tab_viz, tab_explain, tab_errors, tab_predict) = st.tabs([
             "📊 Models", "📋 Data Profile", "🧹 Cleaning", "🔧 Features",
             "📈 Visualizations", "🔍 Explanations", "⚠️ Error Analysis",
-            "📐 Segments", "🎯 Predict",
+            "🎯 Predict",
         ])
 
         # ── Models ────────────────────────────────────────────────────────────
@@ -453,6 +497,25 @@ with tab_ml:
                         oc1.metric("Train Score", f"{overfit['train_score']:.4f}")
                         oc2.metric("CV Score",    f"{overfit['cv_score']:.4f}")
                         oc3.metric("Gap (overfit indicator)", f"{overfit.get('gap', 0):.4f}")
+
+                # ── Comprehensive Metrics ──────────────────────────────────
+                comp_metrics = result.get("comprehensive_metrics", {})
+                if comp_metrics and 'error' not in comp_metrics:
+                    task = comp_metrics.get("task_type", "classification")
+                    st.markdown("### 📏 Comprehensive Evaluation Metrics")
+                    if task == "classification":
+                        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+                        mc1.metric("✅ Accuracy",  comp_metrics.get("Accuracy", "N/A"))
+                        mc2.metric("🎯 Precision", comp_metrics.get("Precision", "N/A"))
+                        mc3.metric("📡 Recall",    comp_metrics.get("Recall", "N/A"))
+                        mc4.metric("⚖️ F1-Score",  comp_metrics.get("F1-Score", "N/A"))
+                        mc5.metric("📈 ROC-AUC",   comp_metrics.get("ROC-AUC", "N/A"))
+                    else:
+                        mc1, mc2, mc3, mc4 = st.columns(4)
+                        mc1.metric("📐 R²",   comp_metrics.get("R²", "N/A"))
+                        mc2.metric("📏 MAE",  comp_metrics.get("MAE", "N/A"))
+                        mc3.metric("📊 MSE",  comp_metrics.get("MSE", "N/A"))
+                        mc4.metric("📉 RMSE", comp_metrics.get("RMSE", "N/A"))
             else:
                 st.info("No model scores available.")
 
@@ -712,30 +775,6 @@ with tab_ml:
             else:
                 st.info("No error analysis available.")
 
-        # ── Segments ──────────────────────────────────────────────────────────
-        with tab_segments:
-            segment_analysis = result.get("segment_analysis", {})
-            segments_list = segment_analysis.get("segments", []) if isinstance(segment_analysis, dict) else []
-            if segments_list:
-                st.markdown("### Segment Analysis")
-                summary = segment_analysis.get("summary", "")
-                if summary:
-                    st.info(summary)
-                # Group segments by column
-                cols_seen = []
-                for s in segments_list:
-                    c = s.get("column", "unknown")
-                    if c not in cols_seen:
-                        cols_seen.append(c)
-                for col in cols_seen:
-                    column_segments = [s for s in segments_list if s.get("column") == col]
-                    with st.expander(f"Segment by: `{col}`"):
-                        st.dataframe(
-                            pd.DataFrame(column_segments).drop(columns=["column"], errors="ignore"),
-                            use_container_width=True, hide_index=True,
-                        )
-            else:
-                st.info("No segment analysis available.")
 
         # ── Predict ───────────────────────────────────────────────────────────
         with tab_predict:

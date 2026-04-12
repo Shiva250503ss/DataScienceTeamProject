@@ -308,13 +308,17 @@ class ModelerAgent(BaseAgent):
         self.log(f"Error analysis: {len(error_analysis.get('worst_samples', []))} worst predictions analyzed")
 
         # =====================================================================
-        # Step 8: Segment Analysis (performance by data group)
+        # Step 8: Comprehensive Metrics
+        #   Classification → Accuracy, Precision, Recall, F1, ROC-AUC
+        #   Regression     → R², MAE, MSE, RMSE
         # =====================================================================
-        segment_analysis = self._perform_segment_analysis(
-            X, y, final_model, task_type, state.get('raw_data'),
-            state.get('target_column'), state.get('profile_report', {}).get('column_types', {})
+        comprehensive_metrics = self._compute_comprehensive_metrics(
+            X, y, final_model, task_type
         )
-        self.log(f"Segment analysis: tested {len(segment_analysis.get('segments', []))} segments")
+        self.log("Comprehensive metrics computed:")
+        for metric_name_log, metric_val in comprehensive_metrics.items():
+            if isinstance(metric_val, float):
+                self.log(f"  {metric_name_log}: {metric_val:.4f}")
 
         # Update pipeline state
         state['trained_models'] = trained_models
@@ -325,7 +329,7 @@ class ModelerAgent(BaseAgent):
         state['model_recommendations'] = recommendations
         state['overfitting_analysis'] = overfitting_analysis
         state['error_analysis'] = error_analysis
-        state['segment_analysis'] = segment_analysis
+        state['comprehensive_metrics'] = comprehensive_metrics
         state['stage'] = 'modeled'
         
         return state
@@ -971,113 +975,79 @@ class ModelerAgent(BaseAgent):
             error_report['summary'] = f"Error analysis failed: {str(e)}"
         
         return error_report
-    
+
     # =========================================================================
-    # STEP 8: Segment Analysis
+    # STEP 8: Comprehensive Metrics
     # =========================================================================
-    
-    def _perform_segment_analysis(self, X: pd.DataFrame, y: pd.Series,
-                                    model, task_type: str,
-                                    raw_data: pd.DataFrame = None,
-                                    target_col: str = None,
-                                    column_types: Dict = None) -> Dict:
+
+    def _compute_comprehensive_metrics(
+        self, X: pd.DataFrame, y: pd.Series,
+        final_model, task_type: str
+    ) -> Dict:
         """
-        Analyze model performance across data segments — like a real DS who
-        finds that the model works fine for age > 25 but fails for age < 25.
-        
-        For each numeric column, segments data into quantile-based groups
-        and measures performance per segment. This reveals WHERE the model
-        struggles.
+        Compute a full set of evaluation metrics using 5-fold cross-validated
+        predictions (no data leakage).
+
+        Classification:
+          • Accuracy, Precision (weighted), Recall (weighted), F1 (weighted)
+          • ROC-AUC (One-vs-Rest, macro) — only when predict_proba is available
+
+        Regression:
+          • R² (coefficient of determination)
+          • MAE  (Mean Absolute Error)
+          • MSE  (Mean Squared Error)
+          • RMSE (Root Mean Squared Error)
+
+        Also computes per-model metrics for every trained model so the UI
+        can show a comparison table.
         """
-        segment_report = {
-            'segments': [],
-            'problem_segments': [],
-            'summary': ''
-        }
-        
-        if raw_data is None or target_col is None:
-            return segment_report
-        
+        from sklearn.model_selection import cross_val_predict
+        from sklearn.metrics import (
+            accuracy_score, precision_score, recall_score, f1_score,
+            roc_auc_score,
+            r2_score, mean_absolute_error, mean_squared_error
+        )
+
+        metrics: Dict[str, Any] = {'task_type': task_type}
+
+        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+        y_arr = y.values if isinstance(y, pd.Series) else y
+
         try:
-            from sklearn.model_selection import cross_val_predict
-            y_pred = cross_val_predict(model, X, y, cv=5)
-            
-            column_types = column_types or {}
-            
-            # Test segments on original numeric columns
-            numeric_cols = [c for c in raw_data.columns
-                          if c != target_col
-                          and column_types.get(c) == 'numeric'
-                          and raw_data[c].nunique() > 5]
-            
-            # Limit to top 10 columns to avoid excessive computation
-            numeric_cols = numeric_cols[:10]
-            
-            overall_score = self._compute_segment_score(y, y_pred, task_type)
-            
-            for col in numeric_cols:
-                col_data = raw_data[col].iloc[:len(y)]
-                
-                try:
-                    # Split into quantile-based segments
-                    bins = pd.qcut(col_data, q=4, duplicates='drop')
-                    
-                    for segment_label in bins.unique():
-                        if pd.isna(segment_label):
-                            continue
-                        
-                        mask = bins == segment_label
-                        if mask.sum() < 10:  # Need at least 10 samples
-                            continue
-                        
-                        seg_score = self._compute_segment_score(
-                            y[mask.values], y_pred[mask.values], task_type
-                        )
-                        
-                        segment_info = {
-                            'column': col,
-                            'segment': str(segment_label),
-                            'n_samples': int(mask.sum()),
-                            'score': round(float(seg_score), 4),
-                            'overall_score': round(float(overall_score), 4),
-                            'gap': round(float(overall_score - seg_score), 4)
-                        }
-                        segment_report['segments'].append(segment_info)
-                        
-                        # Flag problem segments (performance significantly worse)
-                        if overall_score - seg_score > 0.1:
-                            segment_info['is_problem'] = True
-                            segment_report['problem_segments'].append(segment_info)
-                            
-                except Exception:
-                    continue
-            
-            # Summary
-            n_problems = len(segment_report['problem_segments'])
-            if n_problems > 0:
-                worst = max(segment_report['problem_segments'], key=lambda x: x['gap'])
-                segment_report['summary'] = (
-                    f"Found {n_problems} underperforming segments. "
-                    f"Worst: '{worst['column']}' in range {worst['segment']} "
-                    f"(score: {worst['score']:.4f} vs overall {worst['overall_score']:.4f}, "
-                    f"gap: {worst['gap']:.4f}). "
-                    f"Consider training separate models for these segments."
-                )
-            else:
-                segment_report['summary'] = "Model performs consistently across all data segments."
-            
-        except Exception as e:
-            segment_report['summary'] = f"Segment analysis failed: {str(e)}"
-        
-        return segment_report
-    
-    def _compute_segment_score(self, y_true, y_pred, task_type: str) -> float:
-        """Compute the appropriate score for a segment."""
-        from sklearn.metrics import accuracy_score, r2_score
-        try:
+            y_pred = cross_val_predict(final_model, X_arr, y_arr, cv=5)
+
             if task_type == 'classification':
-                return accuracy_score(y_true, y_pred)
-            else:
-                return r2_score(y_true, y_pred)
-        except Exception:
-            return 0.0
+                metrics['Accuracy']  = round(float(accuracy_score(y_arr, y_pred)), 4)
+                metrics['Precision'] = round(float(precision_score(
+                    y_arr, y_pred, average='weighted', zero_division=0)), 4)
+                metrics['Recall']    = round(float(recall_score(
+                    y_arr, y_pred, average='weighted', zero_division=0)), 4)
+                metrics['F1-Score']  = round(float(f1_score(
+                    y_arr, y_pred, average='weighted', zero_division=0)), 4)
+
+                # ROC-AUC (requires probability estimates)
+                try:
+                    y_proba = cross_val_predict(
+                        final_model, X_arr, y_arr, cv=5, method='predict_proba')
+                    n_classes = len(np.unique(y_arr))
+                    if n_classes == 2:
+                        metrics['ROC-AUC'] = round(float(
+                            roc_auc_score(y_arr, y_proba[:, 1])), 4)
+                    else:
+                        metrics['ROC-AUC'] = round(float(
+                            roc_auc_score(y_arr, y_proba, multi_class='ovr',
+                                         average='weighted')), 4)
+                except Exception:
+                    metrics['ROC-AUC'] = 'N/A'
+
+            else:  # regression
+                metrics['R²']   = round(float(r2_score(y_arr, y_pred)), 4)
+                metrics['MAE']  = round(float(mean_absolute_error(y_arr, y_pred)), 4)
+                metrics['MSE']  = round(float(mean_squared_error(y_arr, y_pred)), 4)
+                metrics['RMSE'] = round(float(np.sqrt(
+                    mean_squared_error(y_arr, y_pred))), 4)
+
+        except Exception as e:
+            metrics['error'] = str(e)
+
+        return metrics

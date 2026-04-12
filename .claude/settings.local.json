@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls *.csv)"
+      "Bash(ls *.csv)",
+      "Bash(python -u -c ':*)"
     ]
   }
 }

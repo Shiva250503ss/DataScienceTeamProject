@@ -1,5 +1,6 @@
 # agents/cleaner.py
 
+import re
 import pandas as pd
 import numpy as np
 from typing import Any, Dict, List
@@ -52,6 +53,28 @@ class CleanerAgent(BaseAgent):
             'transformations': []
         }
         
+        # =====================================================================
+        # Step 0: Safety-net coercion of "disguised numeric" string columns.
+        # The profiler already runs this, but the cleaner re-checks because:
+        #   a) Profiler's category standardization may have merged variants
+        #      that now look numeric (e.g. "$100" + "100" → all "100").
+        #   b) Edge cases the profiler missed (mixed delimiters, new data).
+        # When a column is coerced, update column_types so downstream steps
+        # (missing-value handling, outlier detection, feature engineering)
+        # treat it as numeric instead of categorical.
+        # =====================================================================
+        df, coerced_cols = self._coerce_numeric_strings(df)
+        if coerced_cols:
+            self.log(f"Coerced {len(coerced_cols)} string columns to numeric: {coerced_cols}")
+            for col in coerced_cols:
+                column_types[col] = 'numeric'
+            # Push the updated column_types back into the profile so that
+            # the feature agent and modeler also see the corrected types.
+            state['profile_report']['column_types'] = column_types
+            cleaning_report['transformations'].append(
+                f"Coerced disguised-numeric columns to float64: {coerced_cols}"
+            )
+
         # =====================================================================
         # Step 1: Remove duplicate rows
         # =====================================================================
@@ -349,3 +372,79 @@ class CleanerAgent(BaseAgent):
                 self.log(f"  {col}: Standardized {len(col_map)} variants -> {list(set(col_map.values()))}")
         
         return df, standardization_map
+
+    # =========================================================================
+    # STEP 0: Coerce "Disguised Numeric" String Columns (safety net)
+    # =========================================================================
+
+    # Regex to strip common non-numeric formatting characters:
+    #   $  €  £  ¥  ₹  ₩  ₫  ¢  — currency symbols
+    #   ,  %                     — thousand separators, percent signs
+    #   whitespace               — leading/trailing/embedded spaces
+    _NUMERIC_NOISE_RE = re.compile(r'[$€£¥₹₩₫¢,%\s]')
+
+    # Pattern for parenthesised negatives, e.g.  "(1,234.56)" → "-1234.56"
+    _PAREN_NEGATIVE_RE = re.compile(r'^\s*\((.+)\)\s*$')
+
+    def _coerce_numeric_strings(self, df: pd.DataFrame) -> tuple:
+        """
+        Detect object-dtype columns whose values are really numbers hidden
+        behind formatting characters and convert them to float64.
+
+        Common cases handled:
+          • Currency symbols:    "$1,234.56"  → 1234.56
+          • Percent signs:       "50%"        → 50.0
+          • Parenthesised negs:  "(500.00)"   → -500.0
+          • Thousand separators: "1,000,000"  → 1000000.0
+          • Mixed whitespace:    " 42 "       → 42.0
+          • Unit suffixes:       "10 kg"      → 10.0
+
+        Heuristic: if ≥80% of non-null values become valid floats after
+        stripping, the whole column is converted.
+
+        Returns:
+            (df, list_of_coerced_column_names)
+        """
+        df = df.copy()
+        coerced_cols = []
+
+        for col in df.columns:
+            if df[col].dtype != 'object':
+                continue
+
+            series = df[col].dropna()
+            if len(series) == 0:
+                continue
+
+            # Quick reject: if <50% of values contain a digit, skip.
+            sample = series.head(200).astype(str)
+            has_digit = sample.str.contains(r'\d', regex=True)
+            if has_digit.sum() < len(sample) * 0.5:
+                continue
+
+            cleaned = self._clean_numeric_series(series.astype(str))
+            numeric_parsed = pd.to_numeric(cleaned, errors='coerce')
+            n_valid = numeric_parsed.notna().sum()
+            ratio = n_valid / len(series)
+
+            if ratio >= 0.80:
+                full_cleaned = self._clean_numeric_series(df[col].astype(str))
+                df[col] = pd.to_numeric(full_cleaned, errors='coerce')
+                coerced_cols.append(col)
+
+        return df, coerced_cols
+
+    def _clean_numeric_series(self, s: pd.Series) -> pd.Series:
+        """Strip formatting noise from a string Series so it can be parsed."""
+        # 1. Handle trailing percent sign
+        s = s.str.replace('%', '', regex=False)
+        # 2. Handle parenthesised negatives  ("(500)" → "-500")
+        mask = s.str.match(self._PAREN_NEGATIVE_RE, na=False)
+        s = s.where(~mask, '-' + s.str.replace(r'[()\s]', '', regex=True))
+        # 3. Strip currency symbols, commas, whitespace
+        s = s.str.replace(self._NUMERIC_NOISE_RE, '', regex=True)
+        # 4. Strip trailing alphabetic unit suffixes (e.g. "10kg" → "10")
+        s = s.str.replace(r'[a-zA-Z]+$', '', regex=True)
+        # 5. Strip leading alphabetic prefixes (e.g. "USD100" → "100")
+        s = s.str.replace(r'^[a-zA-Z]+', '', regex=True)
+        return s
