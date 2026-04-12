@@ -746,43 +746,105 @@ with tab_ml:
                 '</div>',
                 unsafe_allow_html=True,
             )
-            feature_names = result.get("feature_names", [])
-            if feature_names and result.get("ensemble_model"):
+
+            # Use ORIGINAL column names (before one-hot encoding) so the user
+            # sees "m_dep" not "m_dep_0.2 / m_dep_0.3 / ..." etc.
+            original_input_columns = result.get("original_input_columns", [])
+            feature_names          = result.get("feature_names", [])
+            display_cols           = original_input_columns if original_input_columns else feature_names
+
+            if display_cols and result.get("ensemble_model"):
+                encoding_info = result.get("feature_report", {}).get("encoding", {})
+                column_types  = result.get("profile_report", {}).get("column_types", {})
+
                 st.markdown("#### Enter Feature Values")
                 user_inputs = {}
-                for i in range(0, len(feature_names), 3):
-                    cols = st.columns(3)
-                    for j, col in enumerate(cols):
+                for i in range(0, len(display_cols), 3):
+                    cols_ui = st.columns(3)
+                    for j, col_widget in enumerate(cols_ui):
                         fi = i + j
-                        if fi < len(feature_names):
-                            feat = feature_names[fi]
-                            with col:
-                                user_inputs[feat] = st.number_input(
-                                    feat, value=0.0, format="%.4f",
-                                    key=f"ml_predict_{feat}",
-                                )
+                        if fi < len(display_cols):
+                            feat       = display_cols[fi]
+                            enc_info   = encoding_info.get(feat, {})
+                            categories = enc_info.get("categories", [])
+                            with col_widget:
+                                if categories:
+                                    # Categorical column — dropdown with real options
+                                    user_inputs[feat] = st.selectbox(
+                                        feat,
+                                        options=categories,
+                                        key=f"ml_predict_{feat}",
+                                    )
+                                else:
+                                    # Numeric column
+                                    user_inputs[feat] = st.number_input(
+                                        feat, value=0.0, format="%.4f",
+                                        key=f"ml_predict_{feat}",
+                                    )
 
-                if st.button("🔮 Make Prediction", type="primary", use_container_width=True):
+                if st.button("Make Prediction", type="primary", use_container_width=True):
                     try:
                         import numpy as np
-                        input_df = pd.DataFrame([user_inputs])[feature_names]
 
+                        # ── Step 1: build 1-row DataFrame from user inputs ──
+                        df_pred = pd.DataFrame([user_inputs])
+
+                        # ── Step 2: apply same encoding as feature.py ───────
+                        encoders = result.get("encoders", {})
+                        for col, enc_info in encoding_info.items():
+                            if col not in df_pred.columns:
+                                continue
+                            method = enc_info.get("method", "")
+
+                            if method == "label":
+                                encoder = encoders.get(col)
+                                if encoder:
+                                    val = str(df_pred[col].iloc[0])
+                                    df_pred[col] = (
+                                        encoder.transform([val])[0]
+                                        if val in encoder.classes_ else 0
+                                    )
+
+                            elif method == "onehot":
+                                val      = str(df_pred[col].iloc[0])
+                                new_cols = enc_info.get("new_cols", [])
+                                prefix   = col + "_"
+                                for new_col in new_cols:
+                                    cat_val = new_col[len(prefix):]
+                                    df_pred[new_col] = 1 if val == cat_val else 0
+                                df_pred = df_pred.drop(columns=[col])
+
+                            elif method == "target":
+                                encoder = encoders.get(col)
+                                if encoder:
+                                    try:
+                                        df_pred[col] = encoder.transform(
+                                            df_pred[[col]]
+                                        )[col].values
+                                    except Exception:
+                                        df_pred[col] = 0.0
+
+                        # ── Step 3: align to final feature set ─────────────
+                        # Handles VIF removal & feature selection automatically.
+                        df_pred = df_pred.reindex(columns=feature_names, fill_value=0)
+
+                        # ── Step 4: apply scaling ───────────────────────────
                         scalers     = result.get("scalers", {})
                         num_scaler  = scalers.get("numeric")
                         cols_scaled = (result.get("feature_report", {})
                                        .get("scaling", {})
                                        .get("columns_scaled", []))
                         if num_scaler is not None and cols_scaled:
-                            avail = [c for c in cols_scaled if c in input_df.columns]
+                            avail = [c for c in cols_scaled if c in df_pred.columns]
                             if avail:
-                                input_df[avail] = num_scaler.transform(input_df[avail])
+                                df_pred[avail] = num_scaler.transform(df_pred[avail])
 
+                        # ── Step 5: predict ─────────────────────────────────
                         model      = result["ensemble_model"]
-                        prediction = model.predict(input_df)[0]
+                        prediction = model.predict(df_pred)[0]
 
-                        encoders      = result.get("encoders", {})
-                        task_type     = result.get("task_type", "")
-                        display_pred  = prediction
+                        task_type    = result.get("task_type", "")
+                        display_pred = prediction
                         if task_type == "classification" and "target" in encoders:
                             try:
                                 display_pred = encoders["target"].inverse_transform(
@@ -802,10 +864,10 @@ with tab_ml:
 
                         if task_type == "classification" and hasattr(model, "predict_proba"):
                             try:
-                                proba   = model.predict_proba(input_df)[0]
+                                proba   = model.predict_proba(df_pred)[0]
                                 classes = (encoders["target"].classes_
                                            if "target" in encoders
-                                           else [f"Class {i}" for i in range(len(proba))])
+                                           else [f"Class {k}" for k in range(len(proba))])
                                 st.markdown("#### Prediction Confidence")
                                 st.dataframe(
                                     pd.DataFrame({"Class": classes,

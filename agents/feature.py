@@ -65,6 +65,11 @@ class FeatureAgent(BaseAgent):
         feature_report['dropped_columns'] = drop_cols
         self.log(f"Removed non-modelable columns ({', '.join(drop_types)}): {drop_cols}")
 
+        # Snapshot of column names BEFORE encoding — used by the Predict UI
+        # so users see original column names (e.g. "m_dep") not OHE-expanded
+        # names (e.g. "m_dep_0.2", "m_dep_0.3").
+        original_input_columns = X.columns.tolist()
+
         # Convert bool columns to int
         bool_cols = [c for c in X.columns if X[c].dtype == bool or str(X[c].dtype) == 'bool']
         for col in bool_cols:
@@ -152,6 +157,7 @@ class FeatureAgent(BaseAgent):
         state['X'] = X
         state['y'] = y
         state['feature_names'] = X.columns.tolist()
+        state['original_input_columns'] = original_input_columns
         state['feature_report'] = feature_report
         state['encoders'] = self.encoders
         state['scalers'] = self.scalers
@@ -195,18 +201,22 @@ class FeatureAgent(BaseAgent):
                 encoding_info[col] = {
                     'method': 'label',
                     'n_unique': n_unique,
-                    'mapping': dict(zip(le.classes_, le.transform(le.classes_)))
+                    'mapping': dict(zip(le.classes_, le.transform(le.classes_).tolist())),
+                    'categories': le.classes_.tolist(),  # for Predict UI selectbox
                 }
                 self.log(f"  {col}: Label encoded (binary, {n_unique} values)")
-            
+
             elif n_unique <= 10:
                 # Low cardinality → One-Hot encoding (dtype=int avoids bool columns)
+                # Capture all categories BEFORE get_dummies (drop_first removes the first)
+                all_categories = sorted(X[col].dropna().astype(str).unique().tolist())
                 dummies = pd.get_dummies(X[col], prefix=col, drop_first=True).astype(int)
                 X = pd.concat([X.drop(columns=[col]), dummies], axis=1)
                 encoding_info[col] = {
                     'method': 'onehot',
                     'n_unique': n_unique,
-                    'new_cols': dummies.columns.tolist()
+                    'new_cols': dummies.columns.tolist(),
+                    'categories': all_categories,  # for Predict UI selectbox (all values)
                 }
                 self.log(f"  {col}: One-hot encoded ({n_unique} values -> {len(dummies.columns)} columns)")
             
