@@ -90,6 +90,14 @@ _PKL_BASE = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..')
 _CLF_PKL = os.path.join(_PKL_BASE, 'rl_model_selector_classification.pkl')
 _REG_PKL = os.path.join(_PKL_BASE, 'rl_model_selector_regression.pkl')
 
+# Paths to the trained pkl files (inside RL_MODEL_PPO_CORRECT)
+_PKL_BASE = os.path.normpath(os.path.join(
+    os.path.dirname(__file__), '..', '..',
+    'RL_MODEL_PPO_CORRECT', 'DataScienceTeamProject'
+))
+_CLF_PKL = os.path.join(_PKL_BASE, 'rl_model_selector_classification.pkl')
+_REG_PKL = os.path.join(_PKL_BASE, 'rl_model_selector_regression.pkl')
+
 
 class ModelerAgent:
     """Trains all models and creates ensemble with RL-powered model selection."""
