@@ -1,0 +1,21 @@
+{
+  "name": "credit_approval",
+  "category": "classification",
+  "description": "Credit card approval: 9 categorical (gender, marital, occupation...) + 6 numeric \u2014 binary approved/denied",
+  "rows": 690,
+  "features": 14,
+  "categorical_features": 8,
+  "numeric_features": 6,
+  "missing_pct": 0.0,
+  "openml_dataset_id": 40981,
+  "in_ppo_training": false,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "0": 383,
+      "1": 307
+    },
+    "majority_pct": 55.5
+  }
+}

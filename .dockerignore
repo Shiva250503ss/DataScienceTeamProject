@@ -1,0 +1,17 @@
+# DataPilot AI Pro — Docker Ignore
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.env
+.vscode/
+*.egg-info/
+dist/
+build/
+*.log
+output/
+notebooks/
+tests/
+docs/
+*.md

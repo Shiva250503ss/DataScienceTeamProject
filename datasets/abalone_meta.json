@@ -1,0 +1,17 @@
+{
+  "name": "abalone",
+  "category": "regression",
+  "description": "Abalone age from physical measurements \u2014 ring count prediction",
+  "rows": 4177,
+  "features": 8,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "continuous",
+    "mean": 9.933684462532918,
+    "std": 3.2241690320681284,
+    "min": 1.0,
+    "max": 29.0
+  },
+  "openml_dataset_id": 183,
+  "in_ppo_training": false
+}

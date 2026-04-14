@@ -1,0 +1,19 @@
+{
+  "name": "mozilla4",
+  "category": "classification",
+  "description": "Mozilla browser performance benchmark results (binary)",
+  "rows": 15545,
+  "features": 5,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "1": 10437,
+      "0": 5108
+    },
+    "majority_pct": 67.1405596654873
+  },
+  "openml_dataset_id": 1046,
+  "in_ppo_training": false
+}

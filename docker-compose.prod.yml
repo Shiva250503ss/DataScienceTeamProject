@@ -1,0 +1,133 @@
+# ============================================================
+# DataPilot AI Pro — Production Docker Compose
+# ============================================================
+# Services:
+#   1. app         — Streamlit UI + pipeline
+#   2. postgres    — Metadata database
+#   3. redis       — Cache & Celery broker
+#   4. qdrant      — Vector DB for embeddings
+#   5. worker      — Celery background worker (optional)
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ── Application (Streamlit UI) ──────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datapilot-app
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+    volumes:
+      - app-output:/app/output
+      - rl-models:/app/rl_selector/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: datapilot-postgres
+    environment:
+      POSTGRES_USER: datapilot
+      POSTGRES_PASSWORD: datapilot
+      POSTGRES_DB: datapilot
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datapilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Redis ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: datapilot-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Qdrant (Vector DB) ─────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: datapilot-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - datapilot
+
+  # ── Celery Worker (optional, for async jobs) ────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datapilot-worker
+    command: >
+      celery -A tasks.worker worker
+      --loglevel=info
+      --concurrency=2
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+    volumes:
+      - app-output:/app/output
+      - rl-models:/app/rl_selector/models
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    profiles:
+      - worker  # Only starts with: docker compose --profile worker up
+    networks:
+      - datapilot
+
+# ── Volumes ─────────────────────────────────────────────────
+volumes:
+  pg-data:
+  redis-data:
+  qdrant-data:
+  app-output:
+  rl-models:
+
+# ── Network ─────────────────────────────────────────────────
+networks:
+  datapilot:
+    driver: bridge

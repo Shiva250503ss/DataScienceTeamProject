@@ -1,0 +1,17 @@
+{
+  "name": "california_housing",
+  "category": "regression",
+  "description": "California median house values \u2014 standard regression benchmark",
+  "rows": 20640,
+  "features": 8,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "continuous",
+    "mean": 2.068558169089147,
+    "std": 1.1539561587441387,
+    "min": 0.14999,
+    "max": 5.00001
+  },
+  "openml_dataset_id": null,
+  "in_ppo_training": false
+}

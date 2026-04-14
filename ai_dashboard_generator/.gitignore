@@ -1,0 +1,21 @@
+# Streamlit secrets — contains API keys, never commit
+.streamlit/secrets.toml
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+env/
+venv/
+.env
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+data/
+
+# Pytest
+.pytest_cache/

@@ -1,0 +1,77 @@
+[
+  {
+    "name": "covertype",
+    "status": "ok",
+    "rows": 60000
+  },
+  {
+    "name": "har",
+    "status": "ok",
+    "rows": 10299
+  },
+  {
+    "name": "credit_card_fraud",
+    "status": "ok",
+    "rows": 60000
+  },
+  {
+    "name": "mozilla4",
+    "status": "ok",
+    "rows": 15545
+  },
+  {
+    "name": "eye_movements",
+    "status": "ok",
+    "rows": 10936
+  },
+  {
+    "name": "california_housing",
+    "status": "ok",
+    "rows": 20640
+  },
+  {
+    "name": "kin8nm",
+    "status": "ok",
+    "rows": 8192
+  },
+  {
+    "name": "cpu_act",
+    "status": "ok",
+    "rows": 8192
+  },
+  {
+    "name": "abalone",
+    "status": "ok",
+    "rows": 4177
+  },
+  {
+    "name": "house_16H",
+    "status": "ok",
+    "rows": 22784
+  },
+  {
+    "name": "kddcup09_appetency",
+    "status": "ok",
+    "rows": 50000
+  },
+  {
+    "name": "madelon",
+    "status": "ok",
+    "rows": 2600
+  },
+  {
+    "name": "nomao",
+    "status": "ok",
+    "rows": 34465
+  },
+  {
+    "name": "amazon_employee_access",
+    "status": "ok",
+    "rows": 32769
+  },
+  {
+    "name": "jungle_chess",
+    "status": "failed",
+    "error": "single positional indexer is out-of-bounds"
+  }
+]

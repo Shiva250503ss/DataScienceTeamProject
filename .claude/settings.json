@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/Users/shiva/OneDrive/Documents/Github/DataScienceTeamProject/output_test*)",
+      "Bash(python -c \"import google.generativeai as genai; import langchain_google_genai; print\\('Both packages OK'\\)\")",
+      "Bash(python -c \"import google; print\\(dir\\(google\\)\\)\")",
+      "Bash(python -c \"import google.generativeai as genai; print\\('genai OK', genai.__version__\\)\")",
+      "Bash(python -c \"from langchain_google_genai import ChatGoogleGenerativeAI; print\\('langchain_google_genai OK'\\)\")",
+      "Bash(C:\\\\Users\\\\shiva\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe -m pip install google-generativeai langchain-google-genai --quiet)",
+      "Bash(python -m pip install google-generativeai langchain-google-genai --quiet)",
+      "Bash(python -c \"import google.generativeai as genai; print\\('genai OK'\\)\")",
+      "Bash(python -m pip install google-genai --quiet)",
+      "Bash(python -c \"import google.genai as genai; print\\('google.genai OK'\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import agents.modeler; print\\('modeler.py imports OK'\\)\")",
+      "Bash(python -m benchmark.quick_check)",
+      "Bash(python -u -c ':*)",
+      "Bash(python -u benchmark/ppo_benchmark.py --task classification --n 20 --cv 3 --output ./benchmark/results_validation)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\shiva\\OneDrive\\Documents\\Github\\DataScienceTeamProject"
+    ]
+  }
+}

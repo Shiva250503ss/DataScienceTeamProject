@@ -1,0 +1,21 @@
+{
+  "name": "mushroom",
+  "category": "classification",
+  "description": "Mushroom edibility: 22 text categorical features (cap shape, color, odor, gill, ring, habitat...) \u2014 all natural language categories, binary poisonous/edible",
+  "rows": 8124,
+  "features": 22,
+  "categorical_features": 22,
+  "numeric_features": 0,
+  "missing_pct": 1.39,
+  "openml_dataset_id": 24,
+  "in_ppo_training": false,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "e": 4208,
+      "p": 3916
+    },
+    "majority_pct": 51.8
+  }
+}

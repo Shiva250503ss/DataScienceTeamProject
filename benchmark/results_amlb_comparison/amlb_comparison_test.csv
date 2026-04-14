@@ -1,0 +1,4 @@
+dataset,openml_dataset_id,task_type,n_train,n_test,n_features,ppo_model,ppo_top1_recommended,ppo_score,ppo_time_s,flaml_model,flaml_score,flaml_time_s,rf_score,rf_time_s,ppo_vs_flaml,ppo_vs_rf
+kc2,1063,classification,417,105,21,GaussianNB,GaussianNB,0.8380952380952381,1.48,lgbm,0.7904761904761904,60.1,0.8,1.03,0.04761904761904767,0.03809523809523807
+iris,61,classification,120,30,4,SVC,RandomForestClassifier,0.9666666666666667,1.63,xgboost,0.9666666666666667,118.44,0.9,0.33,0.0,0.06666666666666665
+cholesterol,204,regression,242,61,13,Ridge,GradientBoostingRegressor,0.12214687433613158,0.4,rf,0.0679523283787461,60.1,0.06344316907275582,0.31,0.05419454595738549,0.05870370526337576

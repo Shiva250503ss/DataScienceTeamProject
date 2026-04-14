@@ -1,0 +1,19 @@
+{
+  "name": "kddcup09_appetency",
+  "category": "messy_classification",
+  "description": "KDD Cup 2009 telecom churn \u2014 230 features, -1 used as missing marker, ~98% negative class (severe class imbalance)",
+  "rows": 50000,
+  "features": 230,
+  "missing_pct": 69.78,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "-1": 49110,
+      "1": 890
+    },
+    "majority_pct": 98.22
+  },
+  "openml_dataset_id": 1111,
+  "in_ppo_training": false
+}

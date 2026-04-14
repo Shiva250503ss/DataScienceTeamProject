@@ -1,0 +1,38 @@
+{
+  "name": "soybean",
+  "category": "classification",
+  "description": "Soybean disease diagnosis: 35 text categorical features (leaf condition, stem, fruit, seed...) \u2014 19 disease classes",
+  "rows": 683,
+  "features": 35,
+  "categorical_features": 35,
+  "numeric_features": 0,
+  "missing_pct": 9.78,
+  "openml_dataset_id": 42,
+  "in_ppo_training": false,
+  "target": {
+    "type": "categorical",
+    "n_classes": 19,
+    "class_balance": {
+      "brown-spot": 92,
+      "frog-eye-leaf-spot": 91,
+      "alternarialeaf-spot": 91,
+      "phytophthora-rot": 88,
+      "brown-stem-rot": 44,
+      "anthracnose": 44,
+      "diaporthe-stem-canker": 20,
+      "purple-seed-stain": 20,
+      "phyllosticta-leaf-spot": 20,
+      "bacterial-pustule": 20,
+      "charcoal-rot": 20,
+      "bacterial-blight": 20,
+      "downy-mildew": 20,
+      "powdery-mildew": 20,
+      "rhizoctonia-root-rot": 20,
+      "2-4-d-injury": 16,
+      "diaporthe-pod-&-stem-blight": 15,
+      "cyst-nematode": 14,
+      "herbicide-injury": 8
+    },
+    "majority_pct": 13.5
+  }
+}

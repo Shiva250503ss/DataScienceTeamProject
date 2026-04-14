@@ -1,0 +1,17 @@
+{
+  "name": "kin8nm",
+  "category": "regression",
+  "description": "Robot arm kinematics \u2014 predict end-effector distance (8 DOF)",
+  "rows": 8192,
+  "features": 8,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "continuous",
+    "mean": 0.714283492357422,
+    "std": 0.2636067956976762,
+    "min": 0.040165378,
+    "max": 1.4585206
+  },
+  "openml_dataset_id": 189,
+  "in_ppo_training": false
+}

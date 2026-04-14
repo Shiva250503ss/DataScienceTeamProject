@@ -1,0 +1,23 @@
+{
+  "name": "har",
+  "category": "classification",
+  "description": "Human Activity Recognition via smartphone sensors \u2014 6 activity classes",
+  "rows": 10299,
+  "features": 561,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 6,
+    "class_balance": {
+      "6": 1944,
+      "5": 1906,
+      "4": 1777,
+      "1": 1722,
+      "2": 1544,
+      "3": 1406
+    },
+    "majority_pct": 18.87561899213516
+  },
+  "openml_dataset_id": 1478,
+  "in_ppo_training": false
+}

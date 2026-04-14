@@ -1,0 +1,19 @@
+{
+  "name": "credit_card_fraud",
+  "category": "classification",
+  "description": "Credit card fraud detection \u2014 real PCA features, 0.17% fraud (severe imbalance)",
+  "rows": 60000,
+  "features": 29,
+  "missing_pct": 0.0,
+  "target": {
+    "type": "categorical",
+    "n_classes": 2,
+    "class_balance": {
+      "0": 59895,
+      "1": 105
+    },
+    "majority_pct": 99.825
+  },
+  "openml_dataset_id": 1597,
+  "in_ppo_training": false
+}

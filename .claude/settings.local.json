@@ -1,9 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install:*)",
-      "Bash(md-to-pdf:*)",
-      "Bash(dir:*)"
+      "Bash(ls *.csv)",
+      "Bash(python -u -c ':*)"
     ]
   }
 }
