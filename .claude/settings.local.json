@@ -17,7 +17,9 @@
       "Bash(awk -F',' 'NR>1 {sum+=$14; n++} END {printf \"RF baseline mean acc: %.4f over %d datasets\\\\n\", sum/n, n}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
       "Bash(PPO_TIMESTEPS=30000 python RL_MODEL_PPO_CORRECT/quick_training_with_logging.py)",
       "Bash(grep -n \"^\\\\\\\\\\\\\\\\subsection\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(grep -cE \"^\\\\\\\\\\\\\\\\begin\\\\{figure\\\\}\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
+      "Bash(grep -cE \"^\\\\\\\\\\\\\\\\begin\\\\{equation\\\\}|^\\\\\\\\\\\\\\\\begin\\\\{align\\\\}\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")"
     ]
   }
 }

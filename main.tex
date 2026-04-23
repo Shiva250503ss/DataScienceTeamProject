@@ -79,32 +79,31 @@ The ability to extract actionable knowledge from data has become essential acros
 
 \section{Introduction}
 
-Consider a small business owner who has years of sales data sitting in spreadsheets but no data science team to analyze it, or a hospital administrator who needs to predict patient readmission risks but cannot afford to hire machine learning engineers. These are not edge cases but rather the reality for the vast majority of organizations today, where the gap between having data and being able to use it grows wider every year. The process of building machine learning models and extracting meaningful insights demands a rare combination of statistical expertise, programming proficiency, and domain understanding that most teams simply do not possess. A typical data science workflow involves numerous stages including data profiling, cleaning, feature engineering, algorithm selection, model evaluation, and result interpretation, each requiring careful judgment that even experienced practitioners find time consuming. 
+Consider a small business owner with years of sales data in spreadsheets but no data science team, or a hospital administrator who needs to predict patient readmission risks without the budget for ML engineers. These are not edge cases but the reality for most organizations, where the gap between having data and being able to use it grows every year. A typical data science workflow involves profiling, cleaning, feature engineering, algorithm selection, model evaluation, and result interpretation, each requiring judgment that even experienced practitioners find time consuming.
 
-The existing landscape of automated machine learning tools has made progress toward simplifying parts of this workflow, but significant limitations persist. Platforms such as Auto sklearn, TPOT, and H2O AutoML have demonstrated that algorithm selection and hyperparameter optimization can be automated, yet these tools typically assume the user has already prepared a clean and well engineered feature matrix. Data cleaning and feature engineering, which consume the majority of a data scientist's effort, are largely left to the user. Beyond modeling, a critical gap exists in how results are communicated to non technical stakeholders, as most AutoML platforms produce metrics that are meaningful only to those with a statistical background. What is needed is a unified platform that handles the entire journey from raw data to actionable insight, serving both the data scientist who wants an automated pipeline and the business manager who wants to understand what the data is telling them.
+Existing AutoML tools such as Auto sklearn, TPOT, and H2O AutoML have automated algorithm selection and hyperparameter optimization, but they assume the user has already prepared a clean, well engineered feature matrix, leaving cleaning and feature engineering (which consume most of a data scientist's effort) to the user. Beyond modeling, their outputs are statistical metrics opaque to non technical stakeholders. What is needed is a unified platform handling the entire journey from raw data to actionable insight.
 
+In this paper we introduce Data Pilot AI Pro, an autonomous end to end data science platform that unifies data preparation, intelligent model selection, training, explainability, and business intelligence into a single coherent system. Seven specialized agents coordinated through a LangGraph orchestrator cover profiling, cleaning, feature engineering, RL guided model training with voting ensembles, interactive visualization, SHAP and LIME explainability with LLM narratives, and autonomous business insight discovery. The model selector at its core is trained with Proximal Policy Optimization on OpenML datasets, learning to map 40 meta features to the most effective algorithm. The platform is deployed as a Streamlit application where a user uploads a CSV and receives trained models, explanations, and dashboards within minutes, requiring no code.
 
-In this paper, we introduce Data Pilot AI Pro, an autonomous end to end data science platform that unifies data preparation, intelligent model selection, training, explainability, and business intelligence into a single coherent system. The platform coordinates seven specialized agents through a LangGraph orchestrator, covering profiling, cleaning, feature engineering, RL guided model training with voting ensembles, interactive visualization, SHAP and LIME explainability with LLM generated narratives, and autonomous business insight discovery. The reinforcement learning model selector at its core is trained using Proximal Policy Optimization (PPO) on real world datasets from OpenML, learning to map 40 dataset meta features to the most effective algorithm. Our experiments show that the RL guided selector consistently recommends competitive algorithms across both classification and regression benchmarks, and the voting ensemble constructed from its top recommendations matches or outperforms any individual model. The platform is deployed as an interactive Streamlit application where a user can upload a CSV and receive trained models, interpretable explanations, and business intelligence dashboards within minutes, requiring no programming knowledge.
-
-The contributions of this paper are fourfold. First, we present a fully automated pipeline covering every stage from raw data to explainability, eliminating the need for manual intervention at any step. Second, we introduce a PPO based reinforcement learning model selector trained on real OpenML data that consistently identifies strong performing algorithms across diverse tasks. Third, we bridge the gap between technical outputs and business understanding through SHAP and LIME explanations with LLM generated narratives, alongside a separate data analysis mode that autonomously generates business intelligence dashboards from any dataset. Fourth, we design the system as a modular architecture using LangGraph state graphs, allowing individual agents to be improved or replaced independently without affecting the rest of the platform. Through this work, we demonstrate that a well designed autonomous platform can make the full power of data science accessible to anyone with data and a question, regardless of their technical background.
+Our contributions are fourfold: (1) a fully automated pipeline covering every stage from raw data to explainability; (2) a PPO based RL model selector trained on OpenML data; (3) a bridge between technical outputs and business understanding via SHAP and LIME with LLM narratives plus an autonomous data analysis mode; and (4) a modular LangGraph architecture where individual agents can be improved or replaced independently.
 
 
 
 
 \subsection{Related Work}
 
-The automation of machine learning has been an active area of research for over a decade, beginning with Auto WEKA (\citep{thornton2013auto}) which treated algorithm selection and hyperparameter optimization as a single search problem, followed by Auto sklearn (\citep{feurer2015efficient}) which added meta learning warmstarting and ensemble construction, and TPOT (\citep{olson2016tpot}) which used genetic programming to evolve entire pipeline structures. Commercial platforms such as H2O AutoML, Google AutoML, and Amazon SageMaker Autopilot have since brought these ideas into production, yet all of these systems share a fundamental limitation: they focus on the modeling stage and assume the user has already prepared clean, well engineered data. The Algorithm Selection Problem, formalized by Rice (\citep{rice1976algorithm}) and studied extensively through efforts like the StatLog project and the OpenML platform (\citep{vanschoren2014openml}), has shown that dataset meta features can predict which algorithm will perform best, but traditional meta learning approaches rely on static mappings or regression models that struggle to capture the complex nonlinear relationship between data characteristics and model suitability. Our work departs from these approaches by framing model selection as a reinforcement learning problem where a PPO agent learns a dynamic policy through interaction with diverse real world datasets, while also automating every stage before and after model training that existing AutoML tools leave to the user.
+AutoML has been an active research area for over a decade, beginning with Auto WEKA \citep{thornton2013auto}, Auto sklearn \citep{feurer2015efficient}, and TPOT \citep{olson2016tpot}, with commercial platforms like H2O AutoML, Google AutoML, and Amazon SageMaker Autopilot bringing these ideas to production. All share a common limitation: they focus on the modeling stage and assume the user has already prepared clean, well engineered data. The Algorithm Selection Problem \citep{rice1976algorithm}, studied through StatLog and OpenML \citep{vanschoren2014openml}, shows dataset meta features can predict which algorithm performs best, but traditional meta learning relies on static mappings that struggle with complex nonlinear relationships. Our work frames model selection as a reinforcement learning problem where a PPO agent learns a dynamic policy, while also automating stages before and after training that existing AutoML tools leave to the user.
 
-Explainability has become a central requirement in machine learning, with SHAP (\citep{lundberg2017unified}) providing theoretically grounded feature attributions based on Shapley values and LIME (\citep{ribeiro2016lime}) offering model agnostic local explanations through interpretable surrogate models. While both methods are now standard in practice, their outputs remain numerical scores and coefficient tables that non technical stakeholders find difficult to interpret without guidance. Simultaneously, the emergence of large language models has opened new possibilities for data analysis, with systems like ChatGPT Code Interpreter and Pandas AI demonstrating that LLMs can lower the barrier to data exploration, though these tools are inherently reactive and require users to know what questions to ask. Our platform addresses both gaps by using an LLM to translate SHAP and LIME outputs into plain language narratives, and by providing a proactive Data Analyzer agent that autonomously discovers insights and generates business intelligence dashboards without requiring the user to formulate any query.
+Explainability methods SHAP \citep{lundberg2017unified} and LIME \citep{ribeiro2016lime} are now standard, but their outputs are numerical scores and coefficient tables that non technical stakeholders find hard to interpret. LLM based tools like ChatGPT Code Interpreter and Pandas AI lower the barrier to data exploration but are reactive and require users to know what to ask. We address both gaps by using an LLM to translate SHAP and LIME into plain language narratives, and by providing a proactive Data Analyzer agent that autonomously generates dashboards.
 
-The orchestration of multi agent systems for complex workflows has gained attention with frameworks like LangChain and LangGraph, and recent systems such as DS Agent (\citep{guo2024dsagent}) and Data Interpreter (\citep{Hong2024data}) have explored using LLM agents to collaboratively perform data science tasks. However, these systems rely entirely on the LLM to generate and execute code at every step, making them susceptible to hallucination and unreliable on computationally intensive operations like model training and cross validation. Data Pilot AI Pro takes a hybrid architectural approach, combining deterministic expert coded agents for critical stages like cleaning, feature engineering, and model training with LLM powered agents for tasks that benefit from contextual reasoning such as insight discovery and narrative explanation. This design ensures reproducibility and computational reliability where it matters most while leveraging the natural language understanding of large language models where their strengths provide the greatest value, resulting in a system that is both more reliable and more intelligent than purely code based or purely LLM based approaches alone.
+Recent LLM agent systems such as DS Agent \citep{guo2024dsagent} and Data Interpreter \citep{Hong2024data} rely entirely on the LLM to generate and execute code at every step, making them susceptible to hallucination on computationally intensive operations. Data Pilot AI Pro takes a hybrid approach: deterministic expert coded agents handle critical stages like cleaning, feature engineering, and model training, while LLM powered agents handle contextual reasoning tasks like insight discovery and narrative explanation.
 
 
 
 
 \section{Learning and Project Goals}
 
-The gaps identified in existing work, the limited scope of AutoML platforms, the static nature of traditional meta learning approaches, and the disconnect between model outputs and stakeholder understanding, motivated a set of focused learning objectives that guided the development of this project. Our foremost goal was to understand how reinforcement learning can be applied to a real world decision making problem outside its traditional domains of game playing and robotics, specifically learning what it takes to design a custom Gymnasium environment, define meaningful reward signals from actual model performance, and train a PPO agent that generalizes to datasets it has never encountered before. Equally important was learning how large language models can be embedded into structured software pipelines not as standalone conversational tools but as reasoning components that add value at specific stages, and understanding where LLMs genuinely outperform traditional code versus where deterministic logic is more reliable. We also aimed to develop a thorough understanding of the complete machine learning lifecycle, particularly the data profiling, cleaning, and feature engineering stages that are often glossed over in coursework but consume the majority of effort in real world practice. Finally, we wanted hands-on experience designing multi-agent architectures using LangGraph, learning how to decompose a complex end to end workflow into specialized agents that communicate through shared state and execute in a coordinated and extensible manner.
+The gaps in existing work motivated a focused set of learning objectives. Our primary goal was to understand how reinforcement learning can be applied to a real world decision making problem outside its traditional domains of game playing and robotics, specifically how to design a custom Gymnasium environment, define meaningful rewards from model performance, and train a PPO agent that generalizes to unseen datasets. Equally important was learning how LLMs can be embedded in structured pipelines as reasoning components at specific stages rather than as standalone conversational tools, and understanding where LLMs outperform deterministic code versus where they do not. We also aimed to develop end to end understanding of the machine learning lifecycle, particularly profiling, cleaning, and feature engineering which dominate real world practice but are often glossed over in coursework. Finally, we wanted hands-on experience designing multi-agent architectures with LangGraph.
 
 
 
@@ -114,112 +113,67 @@ The gaps identified in existing work, the limited scope of AutoML platforms, the
 
 \subsection{Theory}
 
-The theoretical foundation of Data Pilot AI Pro rests on several interconnected 
-pillars, but the one that warrants the deepest examination is reinforcement 
-learning and specifically Proximal Policy Optimization, as it forms the core 
-intelligence behind our automated model selection system. Reinforcement learning (RL) is a paradigm in which an agent learns to select
-actions by observing states and receiving rewards. While RL is typically
-formulated as a sequential Markov Decision Process with state transitions and
-temporal discounting, our model selection problem has a structure that
-simplifies this formulation considerably. Each episode consists of exactly one
-step: the agent observes a dataset's meta-feature vector, selects one
-algorithm, receives a reward based on that algorithm's hold-out performance,
-and the episode terminates. There are no state transitions, no future states
-to plan for, and no temporal dependencies between decisions across different
-datasets.
- 
-This makes our problem a \emph{contextual bandit}, a single-step decision
-problem defined by the tuple $(\mathcal{S}, \mathcal{A}, R)$, where
-$\mathcal{S} \subseteq [0,1]^{40}$ is the space of normalized meta-feature
-vectors, $\mathcal{A}$ is the finite set of candidate algorithms
-($|\mathcal{A}| = 8$ for classification, $|\mathcal{A}| = 9$ for regression),
-and $R(s, a)$ is the reward for selecting algorithm $a$ given meta-features
-$s$. The agent learns a policy $\pi_\theta(a \mid s)$, a probability
-distribution over algorithms conditioned on the meta-feature vector, that
-maximizes expected reward:
-%
+The theoretical foundation of Data Pilot AI Pro rests on several
+interconnected pillars, the most important of which is reinforcement
+learning with Proximal Policy Optimization, the core of our automated model
+selection. Our setup is a \emph{contextual bandit}: each episode consists of
+one step where the agent observes a dataset meta-feature vector, selects an
+algorithm, and receives a reward from its hold-out performance, with no
+temporal dependencies between datasets. Formally the problem is the tuple
+$(\mathcal{S}, \mathcal{A}, R)$, where $\mathcal{S} \subseteq [0,1]^{40}$ is
+the space of normalized meta-feature vectors, $\mathcal{A}$ is the finite
+action set ($|\mathcal{A}| = 8$ for classification, $9$ for regression),
+and $R(s, a)$ is rank normalized so the best algorithm scores $1.0$ and the
+worst $0.0$ (defined precisely in Section~4.10). The agent learns a policy
+$\pi_\theta(a \mid s)$ that maximizes expected reward:
+
 \begin{equation}
     J(\pi) = \mathbb{E}_{s \sim \mathcal{D}}\!\Big[R\!\big(s,\; a\big)\Big],
     \quad a \sim \pi_\theta(\cdot \mid s)
     \label{eq:objective}
 \end{equation}
-%
-where $\mathcal{D}$ is the distribution over datasets the agent may encounter.
-The reward $R(s,a)$ is rank-normalized so that the best-performing algorithm
-on dataset $s$ receives $1.0$ and the worst receives $0.0$, with intermediate
-algorithms scored proportionally (defined precisely in Section~4.10).
- 
-Although this is a single-step problem, we use Proximal Policy Optimization
-(PPO)~\citep{schulman2017proximal} rather than simpler bandit algorithms for
-two reasons: PPO's clipped surrogate objective provides stable gradient updates
-for the neural network policy even with noisy reward signals from
-cross-validation variance, and its implementation in Stable
-Baselines3 handles categorical action distributions naturally.
+
+We use PPO \citep{schulman2017proximal} rather than simpler bandit algorithms
+because its clipped surrogate objective handles noisy cross-validation
+rewards stably and the Stable Baselines3 implementation supports categorical
+actions out of the box.
 
 
-Policy gradient methods represent a family of reinforcement learning algorithms 
-that directly optimize the policy by computing gradients of the expected reward 
-with respect to the policy parameters, rather than first estimating value 
-functions and deriving a policy from them. The foundational result in this area 
-is the policy gradient theorem \citep{sutton1999policy}, which states that the 
-gradient of the expected return $J(\theta)$ with respect to policy parameters 
-$\theta$ can be expressed as:
+Policy gradient methods directly optimize the policy by computing gradients
+of the expected reward with respect to the policy parameters. The policy
+gradient theorem \citep{sutton1999policy} expresses the gradient of the
+expected return $J(\theta)$ as:
 
 \begin{equation}
 \nabla_\theta J(\theta) = \mathbb{E}\left[\nabla_\theta \log \pi_\theta(a \mid s) \, A(s, a)\right]
 \end{equation}
 
-where $A(s, a)$ is the advantage function measuring how much better action $a$ 
-is compared to the average action in state $s$. As shown in Equation 3, the 
-advantage function is typically estimated as the difference between the action 
-value and the state value:
+where $A(s, a) = Q(s, a) - V(s)$ is the advantage function estimated in
+practice using Generalized Advantage Estimation \citep{schulman2016gae}.
+Vanilla policy gradient methods can collapse when large updates push the
+policy outside the region where the gradient estimate remains accurate,
+which motivated trust region methods such as TRPO \citep{schulman2015trust}
+and its simpler successor Proximal Policy Optimization.
 
-\begin{equation}
-A(s, a) = Q(s, a) - V(s)
-\end{equation}
-
-where $Q(s, a)$ is the action value function and $V(s)$ is the state value 
-function, and in practice Equation 3 is computed using Generalized Advantage 
-Estimation \citep{schulman2016gae} which provides a smooth tradeoff between 
-bias and variance through a parameter $\lambda$. A critical challenge with 
-vanilla policy gradient methods is that large policy updates can cause the 
-performance to collapse catastrophically, because the gradient estimate in 
-Equation 2 is only accurate in a local neighborhood of the current policy and 
-stepping too far invalidates the approximation. This instability motivated the 
-development of trust region methods that constrain how much the policy can 
-change in a single update, leading first to Trust Region Policy Optimization 
-\citep{schulman2015trust} and then to its more practical successor, Proximal 
-Policy Optimization.
-
-Proximal Policy Optimization, introduced by \citet{schulman2017proximal}, achieves 
-the stability benefits of trust region methods while being significantly simpler 
-to implement and tune, which is why it has become the default algorithm in 
-libraries like Stable Baselines3 that our system uses. The key idea is to define 
-a clipped surrogate objective that prevents the policy from changing too 
-drastically in any single update step. Let $r_t(\theta)$ denote the probability 
-ratio between the new and old policies:
+PPO \citep{schulman2017proximal} achieves trust region stability with a
+simpler clipped surrogate objective. Let $r_t(\theta)$ denote the
+probability ratio between the new and old policies:
 
 \begin{equation}
 r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}
 \end{equation}
 
-Using the ratio from Equation 4, the PPO objective is then defined as the 
-clipped surrogate loss:
+The PPO objective is then:
 
 \begin{equation}
 L^{\text{CLIP}}(\theta) = \mathbb{E}_t\left[\min\left(r_t(\theta) \, \hat{A}_t, \; \text{clip}\left(r_t(\theta), \, 1 - \epsilon, \, 1 + \epsilon\right) \hat{A}_t\right)\right]
 \end{equation}
 
-where $\epsilon$ is a small hyperparameter typically set to $0.2$ that controls 
-the maximum allowed deviation. When the advantage $\hat{A}_t$ in Equation 5 is 
-positive, meaning the action was better than average, the objective encourages 
-increasing the action's probability but clips the ratio so it cannot exceed 
-$1 + \epsilon$, preventing an overly aggressive update. When the advantage is 
-negative, the objective encourages decreasing the action's probability but clips 
-at $1 - \epsilon$, ensuring the policy does not swing too far in the opposite 
-direction, and this simple clipping mechanism empirically achieves performance 
-comparable to the more computationally expensive KL divergence constraints used 
-in TRPO.
+where $\epsilon$ (typically $0.2$) bounds the maximum deviation. The clip
+prevents runaway updates in either direction: when the advantage is
+positive the ratio cannot exceed $1 + \epsilon$, and when negative it
+cannot fall below $1 - \epsilon$. This simple clipping empirically matches
+the more expensive KL constraints of TRPO.
 
 The second theoretical pillar underlying our system is the framework of model 
 explainability through SHAP, which is grounded in the theory of Shapley values 
@@ -233,51 +187,31 @@ contributions. The Shapley value for feature $i$ is formally defined as:
 \phi_i = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!\;(|F| - |S| - 1)!}{|F|!} \left[f(S \cup \{i\}) - f(S)\right]
 \end{equation}
 
-where $F$ is the full set of features and $f(S)$ is the model's prediction 
-using only the features in subset $S$. The formulation in Equation 6 satisfies 
-four desirable properties: efficiency (all feature contributions sum to the 
-difference between the prediction and the base value), symmetry (features with 
-identical contributions receive equal credit), dummy (features that contribute 
-nothing receive zero credit), and additivity (Shapley values for combined games 
-equal the sum of individual game values). Computing exact Shapley values as 
-defined in Equation 6 requires evaluating the model on all possible feature 
-subsets which is exponential in the number of features, so SHAP 
-\citep{lundberg2017unified} introduces efficient approximation algorithms including 
-TreeSHAP for tree based models which runs in polynomial time by exploiting the 
-tree structure to enumerate feature coalitions without retraining.
+where $F$ is the full set of features and $f(S)$ is the model's prediction
+using only the features in subset $S$. Exact Shapley values require
+evaluating the model on all feature subsets and scale exponentially, so SHAP
+\citep{lundberg2017unified} uses efficient approximations including TreeSHAP
+for tree based models which runs in polynomial time by exploiting the tree
+structure.
 
-The third theoretical component is LIME, Local Interpretable Model agnostic 
-Explanations \citep{ribeiro2016lime}, which takes a fundamentally different 
-approach from the global attribution in Equation 6 by explaining individual 
-predictions through learning a simple interpretable model in the local 
-neighborhood of the instance being explained. Given an instance $x$, LIME 
-generates a set of perturbed samples around $x$ by randomly modifying feature 
-values, obtains the original model's predictions for each perturbed sample, and 
-then fits a weighted linear model where samples closer to $x$ receive higher 
-weights determined by an exponential kernel:
+The third theoretical component is LIME \citep{ribeiro2016lime}, which
+explains individual predictions by fitting a simple linear surrogate model in
+the local neighborhood of the instance $x$. LIME generates perturbed samples
+around $x$, queries the original model, and fits a weighted linear regression
+where the sample weights come from an exponential kernel:
 
 \begin{equation}
 \pi_x(z) = \exp\left(-\frac{D(x, z)^2}{\sigma^2}\right)
 \end{equation}
 
-where $z$ is a perturbed sample, $D(x, z)$ is the distance between the
-original instance and the perturbed sample, and $\sigma$ controls the kernel
-width. The kernel in Equation 7 ensures that perturbed samples closer to the
-original instance $x$ have a greater influence on the local surrogate model,
-while distant perturbations contribute less to the explanation. The explanation
-is then the set of coefficients of this local linear model, which indicate how
-much each feature contributed to the prediction at that specific point, and
-sparsity is enforced through L1 regularization to ensure only the most important
-features appear in the explanation. The key theoretical insight is that while
-the global decision boundary of a complex model like a random forest or neural
-network may be highly nonlinear, in a sufficiently small neighborhood around any
-single point the boundary can be well approximated by a linear function, making
-the local explanation both faithful and interpretable. In our pipeline, LIME
-complements the Shapley based attributions from Equation 6 by providing an
-independent model agnostic perspective on feature importance, and the LLM then
-synthesizes both SHAP and LIME outputs into a unified natural language narrative
-that explains not just what the model predicted but why, in terms that any
-stakeholder can understand.
+where $z$ is a perturbed sample, $D(x, z)$ is the distance from the original
+instance, and $\sigma$ controls the kernel width. The coefficients of the
+resulting sparse linear model indicate how much each feature contributed at
+that specific point. The theoretical insight is that while the global
+decision boundary of a complex model may be highly nonlinear, in a small
+neighborhood it can be well approximated by a linear function. In our
+pipeline the LLM then synthesizes both SHAP and LIME outputs into a unified
+natural language narrative.
 
 The fourth theoretical pillar of our system is the framework of LLM agents and
 tool calling, which underlies our decision to build Data Pilot AI Pro as a
@@ -295,41 +229,25 @@ external tool that is guaranteed to be correct. The model writes a small
 structured request such as ``run cross validation with 5 folds on this dataset'',
 the request is executed by trusted code, and the numerical result is returned
 to the model so it can continue reasoning. Empirical work such as ReAct
-\citep{yao2023react} and Toolformer \citep{schick2023toolformer} has shown that
-this pattern of interleaved reasoning and tool use produces noticeably more
-accurate answers on tasks that involve numbers, lookups, or multi step planning,
-because the model is no longer forced to imitate calculations it cannot verify.
-In our pipeline we apply this same idea: each agent uses the LLM only for the
-parts that genuinely benefit from language understanding, such as guessing the
-business domain or writing a narrative, while the heavy lifting of imputation,
-encoding, cross validation, SHAP, and LIME is delegated to deterministic
-libraries like scikit learn, pandas, and SHAP. This avoids the well documented
-failure mode where an LLM hallucinates an API call or invents a metric value
-that looks plausible but is wrong.
+\citep{yao2023react} and Toolformer \citep{schick2023toolformer} has shown
+that this pattern produces noticeably more accurate answers on tasks
+involving numbers, lookups, or multi step planning. In our pipeline we
+apply the same idea: each agent uses the LLM only for parts that benefit
+from language understanding, while imputation, encoding, cross validation,
+SHAP, and LIME are delegated to deterministic libraries.
 
-The second question is why we use seven separate agents instead of one agent
-that does everything. A single large prompt that asks one model to profile,
-clean, engineer features, train, explain, and visualize all at once has to keep
-a very long context in mind, and recent studies on multi agent systems show
-that performance on long, mixed tasks tends to drop as the prompt grows and the
-model is asked to switch between different kinds of reasoning. Splitting the
-work into role specialized agents has been shown to help in several empirical
-systems. AutoGen \citep{wu2024autogen} demonstrated that conversations between
-specialized agents outperform a single agent on math, coding, and decision
-making benchmarks, and ChatDev \citep{qian2024chatdev} reported similar gains
-when software engineering tasks were split among role based agents such as
-designer, coder, and tester. The DS Agent \citep{guo2024dsagent} and Data
-Interpreter \citep{Hong2024data} systems extended this pattern specifically to
-data science and observed that breaking the workflow into sub agents reduced
-hallucinations and improved reliability compared to a monolithic prompt. Our
-own experience matches these findings: an early prototype that asked a single
-LLM call to plan and execute the entire pipeline produced unstable code and
-inconsistent results, and moving to seven focused agents with clear inputs and
-outputs eliminated most of these problems. Each agent in our design has a
-narrow responsibility, a small and well defined state to read from, and a small
-and well defined state to write back, which makes the system easier to debug,
-easier to extend, and more robust when one component fails because the
-orchestrator can still recover and pass partial results to the next stage.
+The second question is why seven separate agents instead of one. A single
+prompt asked to profile, clean, engineer features, train, explain, and
+visualize must hold all of that context at once, and empirical multi agent
+systems show this hurts reliability. AutoGen \citep{wu2024autogen} reports
+that specialized agent conversations outperform a single agent on math,
+coding, and decision making benchmarks; ChatDev \citep{qian2024chatdev}
+finds similar gains when software engineering is split across role based
+agents; and DS Agent \citep{guo2024dsagent} and Data Interpreter
+\citep{Hong2024data} extend the pattern to data science and observe fewer
+hallucinations with sub agents than with a monolithic prompt. Our own early
+prototype that used one LLM call for the entire pipeline produced unstable
+code, and moving to seven focused agents eliminated most of these problems.
 
 \begin{table}[h]
 \centering
@@ -486,121 +404,98 @@ observation vector for the PPO agent described in the Background section.
 
 \subsection{Cleaner Agent: Automated Data Cleaning}
 
-The Cleaner applies five operations in sequence: duplicate removal, missing 
-value imputation, outlier handling, data type correction, and category 
-standardization. Missing value handling uses an adaptive strategy that selects 
-the imputation method based on column type and missing percentage: numeric 
-columns with less than 5 percent missing receive median or mean imputation 
-depending on skewness, 5 to 30 percent missing triggers KNN imputation with 
-$k=5$, and above 30 percent uses median imputation with a binary indicator 
-column; categorical columns receive mode imputation below 10 percent and a new 
-``Missing'' category above. Outlier detection uses the IQR method, 
-Winsorizing values beyond $Q1 - 1.5 \times IQR$ and $Q3 + 1.5 \times IQR$ 
-only when outliers constitute less than 5 percent of the column, retaining 
-them as natural variation otherwise. The agent also resolves category 
-inconsistencies like ``Male'', ``male'', and ``MALE'' by selecting the most 
-frequent variant as the canonical form.
+The Cleaner applies five operations in sequence: duplicate removal, missing
+value imputation, outlier handling, data type correction, and category
+standardization. Missing value handling adapts to column type and missing
+percentage: numeric columns use median or mean imputation below 5\% missing,
+KNN imputation with $k=5$ for 5--30\%, and median plus an indicator column
+above 30\%; categorical columns use mode imputation below 10\% and a new
+``Missing'' category above. Outlier detection uses IQR based Winsorizing
+($Q1 - 1.5 \times IQR$ and $Q3 + 1.5 \times IQR$) only when outliers
+constitute less than 5\% of the column. The agent also resolves category
+inconsistencies like ``Male'', ``male'', and ``MALE'' by selecting the most
+frequent variant as canonical.
 
 \subsection{Feature Engineering Agent: Preparing Data for Modeling}
 
-The Feature Engineer transforms cleaned data into a numeric feature matrix 
-through five operations: removal of non modelable columns (ID, datetime, text), 
-categorical encoding, feature selection, VIF based multicollinearity removal, 
-and numerical scaling. Categorical encoding uses a tiered strategy: binary 
-columns receive label encoding, columns with up to 10 unique values receive 
-one hot encoding with the first category dropped, and high cardinality columns 
-receive target encoding with smoothing to prevent overfitting. When the feature 
-space exceeds 50 dimensions, highly correlated features (above 0.95) are 
-removed first, then the remaining features are ranked by mutual information 
-and the top 50 are retained.
-
-The agent then computes the Variance Inflation Factor $VIF_j = 1/(1-R^2_j)$ 
-for each feature and iteratively removes those exceeding a threshold of 10, 
-with a key design choice: when multiple features exceed the threshold, the one 
-with the lowest absolute correlation to the target is dropped rather than the 
-highest VIF, preserving predictive power. Numerical scaling uses RobustScaler 
-when mean absolute skewness exceeds 1 and StandardScaler otherwise.
+The Feature Engineer transforms cleaned data into a numeric feature matrix
+through five operations: dropping non modelable columns (ID, datetime,
+text), categorical encoding, feature selection, VIF based multicollinearity
+removal, and numerical scaling. Categorical encoding is tiered: label
+encoding for binary columns, one hot with the first category dropped for up
+to 10 unique values, and target encoding with smoothing for higher
+cardinality. When the feature space exceeds 50 dimensions, features above
+$0.95$ correlation are dropped first and the remaining are ranked by mutual
+information with the top 50 retained. VIF based removal uses
+$VIF_j = 1/(1-R^2_j)$ with a threshold of 10; when multiple features exceed
+the threshold, the one with the lowest correlation to the target is dropped
+to preserve predictive power. Numerical scaling uses RobustScaler when mean
+absolute skewness exceeds 1 and StandardScaler otherwise.
 
 \subsection{Modeler Agent: RL Guided Model Selection and Ensemble Training}
 
-The Modeler receives the 40 meta features from the Profiler and passes them 
-through the trained PPO policy network, which outputs a probability 
-distribution over all candidate algorithms. The top 3 models by probability 
-are selected: for classification, the pool includes LogisticRegression, 
-GaussianNB, KNeighborsClassifier, SVC, DecisionTreeClassifier, 
-RandomForestClassifier, ExtraTreesClassifier, and 
-GradientBoostingClassifier; for regression, it includes Ridge, Lasso, 
-ElasticNet, SVR, KNeighborsRegressor, DecisionTreeRegressor, 
-RandomForestRegressor, ExtraTreesRegressor, and GradientBoostingRegressor. 
-If the RL model is unavailable, sensible defaults are used.
-
-Each recommended model is trained with 5 fold cross validation (accuracy for 
-classification, $R^2$ for regression) and fitted on the full dataset. All 
-trained models are combined into a VotingClassifier with soft voting or 
-VotingRegressor, and the ensemble is evaluated with its own cross validation. 
-The system selects whichever performs best, single model or ensemble, as the 
-final prediction model. Post training, the agent performs overfitting detection 
-(flagging scores above 0.98 or train-CV gaps above 0.05), error analysis 
-(identifying misclassified samples and high error segments), and segment 
-analysis (evaluating performance across quantile based groups of each numeric 
-column to reveal where the model struggles).
+The Modeler feeds the 40 meta features through the trained PPO policy to
+get a probability distribution over candidate algorithms, and selects the
+top 3. The classification pool is LogisticRegression, GaussianNB,
+KNeighborsClassifier, SVC, DecisionTreeClassifier, RandomForestClassifier,
+ExtraTreesClassifier, and GradientBoostingClassifier; regression uses
+Ridge, Lasso, ElasticNet, SVR, KNeighborsRegressor, DecisionTreeRegressor,
+RandomForestRegressor, ExtraTreesRegressor, and GradientBoostingRegressor.
+Each pick is trained with 5 fold CV, the three are combined into a
+VotingClassifier (soft voting) or VotingRegressor, and the system keeps
+whichever performs best overall. Post training the agent runs overfitting
+detection (flagging scores above $0.98$ or train-CV gaps above $0.05$),
+error analysis, and segment analysis across quantile groups of each numeric
+column.
 
 \subsection{Visualizer Agent: Interactive Pipeline Visualization}
 
-The Visualizer generates interactive Plotly charts organized into four groups 
-corresponding to each pipeline stage: data overview charts from profiling 
-(type distributions, missing heatmaps, quality gauges), cleaning impact charts 
-(before/after comparisons, outlier box plots), feature analysis charts 
-(correlation heatmaps, importance rankings, distribution plots), and model 
-performance charts (CV score comparisons, ensemble versus individual models, 
-confusion matrices or residual plots). All charts use a consistent dark theme 
-and are saved as standalone HTML files, with a consolidated dashboard page 
-embedding all charts in a single navigable view.
+The Visualizer generates interactive Plotly charts in four groups
+corresponding to each pipeline stage: data overview (type distributions,
+missing heatmaps, quality gauges), cleaning impact (before/after
+comparisons, outlier box plots), feature analysis (correlation heatmaps,
+importance rankings, distribution plots), and model performance (CV scores,
+ensemble vs individual models, confusion matrices or residual plots).
+Charts are saved as standalone HTML files with a consolidated dashboard.
 
 \subsection{Explainer Agent: SHAP, LIME, and LLM Narratives}
 
-The Explainer provides three levels of interpretability. At the global level, 
-SHAP values are computed using TreeExplainer for tree based models and 
-KernelExplainer as a fallback, producing beeswarm plots, feature importance 
-bar charts, and interaction plots. At the local level, SHAP waterfall plots 
-and LIME explanations are generated for representative samples, with LIME 
-fitting a sparse linear model using 5000 perturbations and the exponential 
-kernel from Equation 7. At the narrative level, the LLM receives SHAP 
-rankings, model metrics, and pipeline reports, and generates a structured 
-report covering dataset vulnerabilities, cleaning rationale, feature 
-engineering impact, variable relationships, model selection reasoning, and 
-actionable business recommendations. For individual predictions, the LLM 
-translates SHAP values and feature values into 2 to 3 sentence plain English 
-explanations.
+The Explainer provides three levels of interpretability. Globally, SHAP
+values are computed with TreeExplainer (KernelExplainer as fallback),
+producing beeswarm plots, feature importance bars, and interaction plots.
+Locally, SHAP waterfall plots and LIME explanations are generated for
+representative samples, with LIME using 5000 perturbations and the kernel
+from Equation 7. At the narrative level, the LLM receives SHAP rankings,
+metrics, and pipeline reports and produces a structured report covering
+dataset issues, cleaning rationale, feature engineering impact, model
+selection reasoning, and business recommendations. For individual
+predictions it translates SHAP and feature values into 2--3 sentence plain
+English explanations.
 
 \subsection{Data Analyzer Agent: LLM Powered Business Intelligence}
 
-The Data Analyzer serves non technical stakeholders by autonomously discovering 
-6 to 8 business relevant insights from any uploaded dataset. It sends column 
-information, sample data, and statistical highlights to the LLM, which returns 
-a JSON structure specifying each insight's title, chart type, column mappings, 
-aggregation method, and category. The agent programmatically generates each 
-Plotly chart and calls the LLM again to produce natural language narratives 
-explaining each finding. It also supports conversational follow up where users 
-type natural language questions and receive dynamically generated 
-visualizations, addressing the reactive limitation of existing LLM tools 
-identified in the Related Work.
+The Data Analyzer autonomously discovers 6--8 business relevant insights
+from any uploaded dataset. It sends column info, sample data, and
+statistical highlights to the LLM, which returns a JSON structure
+specifying each insight's title, chart type, column mappings, and
+aggregation. The agent programmatically generates each Plotly chart and
+calls the LLM again for natural language narratives. It also supports
+conversational follow up where users type questions and receive dynamically
+generated visualizations.
 
 \subsection{RL Model Selector: Training Pipeline}
 
-The RL selector is trained offline by collecting real-world datasets from 
-OpenML, extracting 40 meta-features per dataset, and evaluating all candidate 
-algorithms with a 75/25 hold-out split to record their actual scores. This 
-evaluation uses a single train-test split rather than cross-validation to 
-reduce training time, as each candidate algorithm must be evaluated on every 
-training dataset during environment construction. The resulting data is loaded 
-into a custom Gymnasium environment where each single-step 
-episode presents a dataset's meta-features as the observation and requires 
-the agent to select one of $n$ candidate models as its action. The reward 
-function assigns each action a score based on its rank among all candidate 
-models' hold-out evaluation scores. Given the selected action $a$ with 
-hold-out score $s(a, \mathcal{D})$, we compute its rank as the number 
-of alternative actions with strictly higher scores:
+The RL selector is trained offline by collecting OpenML datasets,
+extracting 40 meta-features per dataset, and evaluating all candidate
+algorithms with a 75/25 hold-out split to record their actual scores. A
+single train-test split is used rather than cross-validation because every
+candidate must be evaluated on every training dataset during environment
+construction. The resulting data is loaded into a custom Gymnasium
+environment where each single-step episode presents a dataset's
+meta-features as the observation and the agent selects one of $n$
+candidates. The reward is rank based: given action $a$ with hold-out score
+$s(a, \mathcal{D})$, its rank is the number of actions with strictly higher
+scores:
 \begin{equation}
 \text{rank}(a) = \left| \{ a' \in \mathcal{A} : s(a', \mathcal{D}) > s(a, \mathcal{D}) \} \right|
 \end{equation}
@@ -621,31 +516,20 @@ inference.
 
 \subsection{PPO Policy Network Architecture}
 
-The policy network that sits at the heart of the RL model selector is a
-fully connected multilayer perceptron implemented using Stable Baselines3's
-MlpPolicy. Figure~\ref{fig:ppo_network} shows the complete architecture.
-The network takes the 40 dimensional meta-feature vector as input, passes
-it through three hidden layers of 256, 256, and 128 neurons respectively
-with ReLU activations, and produces a probability distribution over the
-candidate algorithm set via a Softmax output layer. For classification
-tasks the output has 8 units (one per candidate classifier) and for
-regression tasks it has 9 units (one per candidate regressor). During
-inference the Modeler agent extracts the 40 meta-features from the current
-dataset, feeds them through this network in a single forward pass, and uses
-the resulting probabilities to rank the candidate algorithms and pick the
-top 3 for ensemble construction.
-
-The choice of network depth and width was guided by the complexity of the
-mapping being learned: 40 input dimensions is a modest observation space,
-but the relationship between dataset characteristics and algorithm
-performance involves subtle interactions that a shallow network struggles
-to capture. The 256-256-128 bottleneck design concentrates representational
-capacity near the input where the most complex feature interactions occur,
-and narrows toward the output where the network simply needs to assign
-relative weights across a small fixed set of actions. A separate policy
-network is trained for classification and regression because their action
-spaces differ and joint training was found to be unstable due to the
-conflicting gradient signals from the two task types.
+The policy network is a fully connected MLP implemented using Stable
+Baselines3's MlpPolicy (Figure~\ref{fig:ppo_network}). It takes the 40
+dimensional meta-feature vector, passes it through three hidden layers of
+256, 256, and 128 neurons with ReLU activations, and produces a Softmax
+probability distribution over the candidate algorithms. Classification has
+8 output units, regression has 9. At inference the Modeler extracts the 40
+meta-features, runs a single forward pass, and uses the output
+probabilities to rank candidates and pick the top 3 for ensemble
+construction. The 256-256-128 bottleneck concentrates representational
+capacity near the input where feature interactions are complex and narrows
+toward the output where only relative weights across a small action set
+are needed. Separate networks are trained for classification and
+regression because their action spaces differ and joint training was
+unstable.
 
 \begin{figure}[H]
 \centering
@@ -940,27 +824,6 @@ The Streamlit-based interface provides two primary interaction modes through a t
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/profiler agent .jpeg}
-\caption{Profiler Agent output displaying detected column types, dataset statistics, quality score, and data warnings.}
-\label{fig:profiler_output}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{figures/cleaner agent.jpeg}
-\caption{Cleaner Agent output showing imputation strategies applied, outlier handling results, and data quality improvements.}
-\label{fig:cleaner_output}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{figures/feature engineering agent.jpeg}
-\caption{ Feature Engineering Agent output displaying categorical encoding decisions, feature selection results, and VIF-based removal.}
-\label{fig:feature_output}
-\end{figure}
-
-\begin{figure}[H]
-\centering
 \includegraphics[width=0.9\textwidth]{figures/modeler agent.jpeg}
 \caption{Modeler Agent output showing RL-recommended models, 5-fold CV scores, ensemble weights, and overfitting analysis.}
 \label{fig:modeler_output}
@@ -968,23 +831,9 @@ The Streamlit-based interface provides two primary interaction modes through a t
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]{figures/visualizer agent.jpeg}
-\caption{Visualizer Agent output with interactive Plotly charts for profiling, cleaning impact, feature analysis, and model evaluation.}
-\label{fig:visualizer_output}
-\end{figure}
-
-\begin{figure}[H]
-\centering
 \includegraphics[width=0.98\textwidth]{figures/explainer agent.jpeg}
 \caption{Explainer Agent output combining SHAP global importance, LIME local explanations, and LLM-generated plain-language narratives.}
 \label{fig:explainer_output}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.98\textwidth]{figures/data analyzer agent.jpeg}
-\caption{UI is based on Data insights that show the data summary, KPI, custom chart builder, chatbot for queries regarding the data}
-\label{fig:analyzer_output}
 \end{figure}
 
 
@@ -1046,13 +895,11 @@ More broadly, tools like Data Pilot AI Pro sit at the intersection of democratiz
 
 
 
-Modern data science remains paradoxically inaccessible despite the maturity of its underlying tools. Organizations that stand to benefit most from machine learning, small teams without dedicated ML engineers, domain experts with rich data but no coding expertise, researchers outside computer science, are precisely those least equipped to navigate the complex pipeline of data profiling, cleaning, feature engineering, model selection, and interpretation. Data Pilot AI Pro was born from this observation: that the barrier to useful machine learning is not algorithmic sophistication but operational complexity, and that intelligent automation of the end-to-end workflow could meaningfully lower that barrier without sacrificing the transparency that responsible data science demands.
+Modern data science remains paradoxically inaccessible despite the maturity of its tools. The organizations that stand to benefit most from machine learning are precisely those least equipped to navigate the pipeline of profiling, cleaning, feature engineering, model selection, and interpretation. Data Pilot AI Pro was built on the observation that the barrier is not algorithmic sophistication but operational complexity, and that end-to-end automation can lower the barrier without sacrificing transparency.
 
-Our approach combined a LangGraph-orchestrated multi-agent architecture with a PPO-trained reinforcement learning model selector to automate the complete data science lifecycle. Seven specialized agents, each blending deterministic computation with targeted LLM reasoning, collaboratively transform a raw dataset into a trained model accompanied by SHAP and LIME explanations, interactive visualizations, and natural language narratives accessible to non-technical stakeholders. The RL-based model selector, trained on meta-features extracted from 500 OpenML datasets and 100 synthetic datasets, was evaluated against FLAML, Microsoft's state-of-the-art AutoML framework, on the 39-dataset OpenML CC18 benchmark. PPO achieved a mean cross-validation accuracy of 0.8536 compared to FLAML's 0.8527, a difference that was not statistically significant under the Wilcoxon signed-rank test ($p = 0.2387$), while winning 23 of 39 head-to-head comparisons (59\%) and tying on 3 more. Most strikingly, PPO reached this accuracy with a median runtime of 1.6 seconds per dataset, compared to FLAML's 61.7 seconds, an approximately 38$\times$ speedup that makes intelligent model selection practical for interactive and resource-constrained settings. End-to-end pipeline runs on representative datasets ranging from 150 samples (Iris) to 20,000 samples (Kin8nm) completed in 6 seconds to just over a minute, with the platform achieving best scores of 0.961 on Kin8nm regression and 0.952 accuracy on Iris classification. Equally important, the data analysis agent extends the platform's value beyond prediction, generating LLM-powered business insights that detected 85\% of expected patterns in our evaluation datasets and presented them at reading levels accessible to stakeholders without statistical training.
+Our approach combined a LangGraph-orchestrated multi-agent architecture with a PPO-trained RL model selector. Seven specialized agents, each blending deterministic computation with targeted LLM reasoning, transform a raw dataset into a trained model with SHAP and LIME explanations, interactive visualizations, and natural-language narratives. The RL selector, trained on 500 OpenML and 100 synthetic datasets, matches Microsoft's FLAML AutoML in mean cross-validation accuracy on the 39-dataset CC18 benchmark (0.8536 vs 0.8527, $p = 0.2387$ Wilcoxon signed-rank), wins 23 of 39 head-to-head comparisons, and runs approximately $38\times$ faster (1.6s vs 61.7s median). End-to-end pipeline runs on representative datasets complete in 6 seconds to just over a minute. The data analysis agent extends the platform beyond prediction, detecting 85\% of expected patterns in our evaluation datasets at reading levels accessible to stakeholders without statistical training.
 
-These results affirm that autonomous data science is not only feasible but practically valuable, matching AutoML-grade accuracy at a fraction of the computational cost, though our honest assessment reveals important caveats. The system excels on structured tabular data within the distribution of its training experience but struggles with edge cases: extreme feature interactions that confound VIF-based selection, heavily skewed distributions that trigger false outlier detection, and meta-feature profiles outside its training manifold where the RL policy degrades to default recommendations. On harder benchmarks such as Diabetes regression (best score 0.481) and Steel Plates multiclass classification (0.635), the pipeline's performance reflects the inherent difficulty of the underlying problem rather than automation limitations, though these cases remind us that no amount of orchestration compensates for noisy or inherently ambiguous data. The LLM dependency introduces reliability and privacy considerations that would require careful mitigation in production deployments. 
-
-Several promising directions emerge for future work. Incorporating uncertainty quantification into both the RL selector and model predictions would allow the system to communicate confidence alongside results, helping users distinguish reliable outputs from speculative ones. Extending the meta-feature representation to capture temporal structure and text characteristics would broaden the platform's applicability beyond purely tabular data. 
+These results show that autonomous data science is not only feasible but practically valuable at a fraction of traditional AutoML cost, with honest caveats: the system struggles on extreme feature interactions, heavily skewed distributions, and meta-feature profiles outside its training manifold. The LLM dependency raises reliability and privacy concerns that would need mitigation in production. Promising future directions include uncertainty quantification so the system can communicate confidence alongside results, and extending the meta-feature representation to temporal and text data.
 
 \subsection{AI Disclosure}
 
