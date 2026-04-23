@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(ls *.csv)",
-      "Bash(python -u -c ':*)"
+      "Bash(python -u -c ':*)",
+      "Bash(awk -F',' 'NR>1 && $2==\"CLA\" {print $3}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/ppo_vs_automl_report.csv\")",
+      "Bash(awk -F',' 'NR>1 && $2==\"REG\" {print $3}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/ppo_vs_automl_report.csv\")",
+      "Bash(awk -F',' 'NR>1 && $2==\"CLA\" {sum+=$6; n++} END {printf \"PPO mean acc \\(cla\\): %.4f over %d datasets\\\\n\", sum/n, n}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/ppo_vs_automl_report.csv\")",
+      "Bash(awk -F',' 'NR>1 && $2==\"CLA\" {sum+=$7; n++} END {printf \"AutoML mean acc \\(cla\\): %.4f over %d datasets\\\\n\", sum/n, n}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/ppo_vs_automl_report.csv\")",
+      "Bash(awk -F',' 'NR>1 {print $7}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(awk -F',' 'NR>1 {sum_ppo+=$9; sum_flaml+=$12; sum_ppo_t+=$10; sum_flaml_t+=$13; n++} END {printf \"PPO mean: %.4f, FLAML mean: %.4f over %d datasets\\\\nPPO mean time: %.1fs, FLAML mean time: %.1fs\\\\n\", sum_ppo/n, sum_flaml/n, n, sum_ppo_t/n, sum_flaml_t/n}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(awk -F',' 'NR>1 {if \\($16+0 > 0\\) win++; else if \\($16+0 < 0\\) loss++; else tie++} END {printf \"PPO wins: %d, losses: %d, ties: %d \\(total: %d\\)\\\\n\", win, loss, tie, win+loss+tie}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(awk -F',' 'NR>1 {print $10}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(awk '{a[NR]=$1} END {print \"PPO median time:\", \\(NR%2==1\\)?a[\\(NR+1\\)/2]:\\(a[NR/2]+a[NR/2+1]\\)/2, \"seconds\"}')",
+      "Bash(awk -F',' 'NR>1 {print $13}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(awk '{a[NR]=$1} END {print \"FLAML median time:\", \\(NR%2==1\\)?a[\\(NR+1\\)/2]:\\(a[NR/2]+a[NR/2+1]\\)/2, \"seconds\"}')",
+      "Bash(awk -F',' 'NR>1 {sum+=$14; n++} END {printf \"RF baseline mean acc: %.4f over %d datasets\\\\n\", sum/n, n}' \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/benchmark/results_amlb_comparison/amlb_comparison_cc18.csv\")",
+      "Bash(PPO_TIMESTEPS=30000 python RL_MODEL_PPO_CORRECT/quick_training_with_logging.py)",
+      "Bash(grep -n \"^\\\\\\\\\\\\\\\\subsection\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
+      "Bash(tasklist)"
     ]
   }
 }
