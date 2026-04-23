@@ -614,10 +614,52 @@ classification, 9 for regression). This rank-based formulation provides a
 smooth reward signal that encourages the agent to consistently identify 
 top-performing models rather than merely favoring any above-average candidate.
 
-The PPO agent uses a 3-layer MLP policy (256, 256, 128 neurons), is trained 
-for 50,000 to 100,000 timesteps per task type with clipping parameter 
-$\epsilon = 0.2$, and the trained model is saved as a pickle file for 
+The PPO agent uses a 3-layer MLP policy (256, 256, 128 neurons), is trained
+for 50,000 to 100,000 timesteps per task type with clipping parameter
+$\epsilon = 0.2$, and the trained model is saved as a pickle file for
 inference.
+
+\subsection{PPO Policy Network Architecture}
+
+The policy network that sits at the heart of the RL model selector is a
+fully connected multilayer perceptron implemented using Stable Baselines3's
+MlpPolicy. Figure~\ref{fig:ppo_network} shows the complete architecture.
+The network takes the 40 dimensional meta-feature vector as input, passes
+it through three hidden layers of 256, 256, and 128 neurons respectively
+with ReLU activations, and produces a probability distribution over the
+candidate algorithm set via a Softmax output layer. For classification
+tasks the output has 8 units (one per candidate classifier) and for
+regression tasks it has 9 units (one per candidate regressor). During
+inference the Modeler agent extracts the 40 meta-features from the current
+dataset, feeds them through this network in a single forward pass, and uses
+the resulting probabilities to rank the candidate algorithms and pick the
+top 3 for ensemble construction.
+
+The choice of network depth and width was guided by the complexity of the
+mapping being learned: 40 input dimensions is a modest observation space,
+but the relationship between dataset characteristics and algorithm
+performance involves subtle interactions that a shallow network struggles
+to capture. The 256-256-128 bottleneck design concentrates representational
+capacity near the input where the most complex feature interactions occur,
+and narrows toward the output where the network simply needs to assign
+relative weights across a small fixed set of actions. A separate policy
+network is trained for classification and regression because their action
+spaces differ and joint training was found to be unstable due to the
+conflicting gradient signals from the two task types.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/ppo_network_architecture.jpeg}
+\caption{PPO policy network architecture for the classification model
+selector. The network maps a 40-dimensional dataset meta-feature vector
+through three fully connected hidden layers (256, 256, 128 neurons with
+ReLU activations) to an 8-dimensional Softmax output representing a
+probability distribution over the eight candidate classification
+algorithms. A separate network with a 9-unit output is trained for the
+regression selector. The top 3 algorithms by output probability are
+forwarded to the Modeler agent for ensemble construction.}
+\label{fig:ppo_network}
+\end{figure}
 
 \subsection{User Interface}
 
