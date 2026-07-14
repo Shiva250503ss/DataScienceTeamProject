@@ -942,7 +942,7 @@ st.markdown("---")
 st.markdown(
     '<p style="color:#9CA3AF;font-size:0.85em;text-align:center;">'
     'DataPilot AI Pro — Automated Data Science Platform &nbsp;|&nbsp; '
-    'Powered by LangGraph · Groq · SHAP · Reinforcement Learning'
+    'Powered by LangGraph · Ollama (Mistral-7B) · SHAP · Reinforcement Learning'
     '</p>',
     unsafe_allow_html=True,
 )

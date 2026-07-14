@@ -38,6 +38,10 @@ sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
 qdrant-client==1.7.0
 
+# RAG — all local models, no API keys
+sentence-transformers>=2.7.0   # dense embeddings + cross-encoder reranker
+rank-bm25==0.2.2               # sparse retrieval arm of hybrid search
+
 # MLOps
 mlflow==2.10.0
 

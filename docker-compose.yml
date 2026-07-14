@@ -32,6 +32,18 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  # Ollama — local LLM server (Mistral-7B-Instruct)
+  # After first start, pull the model once:
+  #   docker exec datapilot-ollama ollama pull mistral:7b-instruct
+  ollama:
+    image: ollama/ollama:latest
+    container_name: datapilot-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
 volumes:
   postgres_data:
   qdrant_data:
+  ollama_data:

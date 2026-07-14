@@ -4,6 +4,81 @@ from typing import List, Dict, Optional
 import requests
 
 
+class OllamaClient:
+    """
+    Local LLM via Ollama (https://ollama.com) — the PRIMARY client.
+
+    Runs Mistral-7B-Instruct (or any pulled model) fully offline:
+      - no API key
+      - no rate limits / token quotas
+      - data never leaves the machine
+
+    Setup:
+        ollama pull mistral:7b-instruct
+
+    Exposes the same interface as GeminiClient / GroqClient
+    (generate + chat_completion) so it is a drop-in replacement.
+    """
+
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "mistral:7b-instruct",
+        fallback_client: Optional[object] = None,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.default_model = model
+        self._fallback = fallback_client
+
+    def generate(self, prompt: str, model: str = None) -> str:
+        """Single-turn generation with JSON output forced (column intelligence)."""
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": model or self.default_model,
+                    "prompt": prompt,
+                    # Ollama natively supports constrained JSON decoding
+                    "format": "json",
+                    "stream": False,
+                    "options": {"temperature": 0.1, "num_predict": 1024},
+                },
+                timeout=120,  # local 7B inference is slower than cloud APIs
+            )
+            response.raise_for_status()
+            return response.json()["response"]
+        except Exception as exc:
+            if self._fallback is not None:
+                return self._fallback.generate(prompt, model=None)
+            raise RuntimeError(
+                f"Ollama generate failed and no fallback configured: {exc}. "
+                f"Is Ollama running? (`ollama serve`, then `ollama pull {self.default_model}`)"
+            ) from exc
+
+    def chat_completion(self, messages: List[Dict], model: str = None) -> str:
+        """Multi-turn chat with system/user/assistant messages (chatbot)."""
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json={
+                    "model": model or self.default_model,
+                    "messages": messages,  # Ollama accepts OpenAI-style roles
+                    "stream": False,
+                    "options": {"temperature": 0.3, "num_predict": 2048},
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            return response.json()["message"]["content"]
+        except Exception as exc:
+            if self._fallback is not None:
+                return self._fallback.chat_completion(messages, model=None)
+            raise RuntimeError(
+                f"Ollama chat failed and no fallback configured: {exc}. "
+                f"Is Ollama running? (`ollama serve`, then `ollama pull {self.default_model}`)"
+            ) from exc
+
+
 class GeminiClient:
     """
     Google Gemini AI client (primary LLM) with automatic Groq fallback.

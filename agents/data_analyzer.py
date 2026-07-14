@@ -340,6 +340,29 @@ class DataAnalyzerAgent(BaseAgent):
         }
         state['analyzer_dir'] = analyzer_dir
 
+        # ── RAG: index this run's discovered insights so future chat
+        # questions and Explainer narratives can reference them ───────────
+        try:
+            from rag.indexer import RagIndexer
+            docs = [{
+                'text': f"Dataset '{dataset_name}' ({domain}): {summary}",
+                'doc_type': 'dataset_profile',
+                'dataset_name': dataset_name,
+                'metadata': {'domain': domain},
+            }]
+            for insight, narrative in zip(insight_list, narratives.values()):
+                docs.append({
+                    'text': f"{insight.get('title', '')}. {narrative}",
+                    'doc_type': 'insight',
+                    'dataset_name': dataset_name,
+                    'metadata': {'chart_type': insight.get('chart_type'),
+                                 'insight_type': insight.get('insight_type')},
+                })
+            n_added = RagIndexer().index_documents(docs)
+            self.log(f"RAG: indexed {n_added} new insight documents")
+        except Exception as e:
+            self.log(f"RAG indexing skipped (non-fatal): {e}")
+
         self.log(f"Data analysis complete! {len(charts)} charts generated in {analyzer_dir}")
         return state
 
@@ -414,26 +437,68 @@ class DataAnalyzerAgent(BaseAgent):
         return state
 
     def analyze_with_prompt(self, df: pd.DataFrame, user_prompt: str,
-                            output_dir: str = './output/data_analysis') -> Dict:
+                            output_dir: str = './output/data_analysis',
+                            chat_history: Optional[List[Dict]] = None) -> Dict:
         """
         Generate a specific visualization based on a user's natural language prompt.
-        
+
         Examples:
           - "Show me sales trends by month"
           - "What's the distribution of customer ages?"
           - "Compare revenue across regions"
           - "Top 10 products by quantity sold"
-        
+
+        RAG chat-mode upgrades:
+          1. QUERY TRANSFORMATION — vague / multi-turn questions ("why is it
+             dropping?") are rewritten into self-contained queries using the
+             chat history and real column names BEFORE anything else runs.
+          2. RETRIEVAL — related insights from past analyses (hybrid search +
+             cross-encoder rerank) and multi-hop knowledge-graph facts are
+             appended to the LLM context, so answers can reference what
+             previous runs discovered.
+
         Args:
             df: The dataset
             user_prompt: Natural language question/request
             output_dir: Where to save the chart
-        
+            chat_history: optional [{'role','content'}, ...] from the chat UI
+
         Returns:
             Dict with 'chart' (Plotly Figure), 'title', 'description', 'narrative'
         """
         self.log(f"Processing user prompt: '{user_prompt}'")
         os.makedirs(output_dir, exist_ok=True)
+
+        # ── RAG Step 1: rewrite vague/multi-turn questions ────────────────
+        effective_prompt = user_prompt
+        try:
+            from rag.query_transform import QueryTransformer
+            transform = QueryTransformer().transform(
+                user_prompt, chat_history=chat_history,
+                columns=df.columns.tolist(),
+            )
+            if transform['was_rewritten']:
+                effective_prompt = transform['rewritten']
+                self.log(f"  Query rewritten -> '{effective_prompt}'")
+        except Exception as e:
+            self.log(f"  Query transform skipped (non-fatal): {e}")
+
+        # ── RAG Step 2: retrieve related past insights + graph facts ─────
+        retrieved_context = ""
+        try:
+            from rag.reranker import retrieve_and_rerank
+            from rag.graph_retrieval import KnowledgeGraph
+            docs = retrieve_and_rerank(effective_prompt, top_k=3)
+            facts = KnowledgeGraph().query(effective_prompt, max_facts=5)
+            parts = [d['text'][:300] for d in docs] + facts
+            if parts:
+                retrieved_context = (
+                    "\n\nRELATED FINDINGS FROM PAST ANALYSES (for context only):\n"
+                    + "\n".join(f"- {p}" for p in parts)
+                )
+                self.log(f"  RAG: {len(docs)} documents + {len(facts)} graph facts retrieved")
+        except Exception as e:
+            self.log(f"  RAG retrieval skipped (non-fatal): {e}")
 
         # Get column info for the LLM
         columns = df.columns.tolist()
@@ -446,13 +511,13 @@ class DataAnalyzerAgent(BaseAgent):
             else:
                 sample_values[col] = [str(v) for v in uniq[:5]] + ['...']
 
-        # Ask LLM
+        # Ask LLM — the rewritten prompt goes in, plus any retrieved context
         prompt = USER_PROMPT_TEMPLATE.format(
             columns=columns,
             column_types=json.dumps(column_types, indent=2),
             sample_values=json.dumps(sample_values, indent=2),
-            user_prompt=user_prompt
-        )
+            user_prompt=effective_prompt
+        ) + retrieved_context
 
         try:
             response = self.ask_llm(prompt)

@@ -1,0 +1,20 @@
+# Fine-tuning suite dependencies (GPU required — install inside WSL2 on Windows)
+# Kept separate from the main requirements.txt because these are heavy,
+# CUDA-specific, and only needed for training — not for running the platform.
+
+# Unsloth pulls compatible torch/transformers/peft/trl/bitsandbytes versions.
+unsloth
+
+# Explicit pins in case you install without unsloth's resolver:
+transformers>=4.44.0
+datasets>=2.20.0
+peft>=0.12.0          # DoRA needs >=0.9 (use_dora flag)
+trl>=0.9.6            # SFTTrainer / DPOTrainer / ORPOTrainer
+bitsandbytes>=0.43.0  # NF4 quantization + paged/8-bit optimizers
+accelerate>=0.33.0
+
+# GaLore optimizer (only for finetune_galore.py — optional/experimental)
+galore-torch
+
+# Benchmark judge + dataset writers talk to local Ollama over HTTP
+requests

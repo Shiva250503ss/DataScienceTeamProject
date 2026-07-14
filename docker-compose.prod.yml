@@ -26,7 +26,10 @@ services:
       - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b-instruct}
+      # Optional cloud fallbacks — leave unset for fully local deployment
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
       - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
     volumes:
       - app-output:/app/output
@@ -36,6 +39,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_started
     restart: unless-stopped
     networks:
       - datapilot
@@ -90,6 +95,20 @@ services:
     networks:
       - datapilot
 
+  # ── Ollama (local LLM server — Mistral-7B-Instruct) ─────────
+  # After first start, pull the model once:
+  #   docker exec datapilot-ollama ollama pull mistral:7b-instruct
+  ollama:
+    image: ollama/ollama:latest
+    container_name: datapilot-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - datapilot
+
   # ── Celery Worker (optional, for async jobs) ────────────────
   worker:
     build:
@@ -124,6 +143,7 @@ volumes:
   pg-data:
   redis-data:
   qdrant-data:
+  ollama-data:
   app-output:
   rl-models:
 

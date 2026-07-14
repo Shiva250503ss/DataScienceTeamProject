@@ -1,0 +1,71 @@
+Paste the text below into Eraser.io's AI diagram generator (diagram-as-code / AI flowchart) to reproduce the full DataPilot AI Pro architecture diagram.
+
+────────────────────────── PROMPT START ──────────────────────────
+
+Create a top-to-bottom architecture flowchart for an AutoML platform called "DataPilot AI Pro" with six grouped sections. Color the "base platform" groups blue, the two "NEW" groups purple with thicker borders, and the infrastructure group green.
+
+GROUP 1 — "Streamlit UI" (blue):
+- node "CSV Upload"
+- node "Chat / Insights Tab"
+
+GROUP 2 — "LangGraph Orchestrator (base platform)" (blue):
+- decision node "Route: ML / Analysis / Both"
+- node "Context Analyzer (LLM domain detection)"
+- node "Profiler Agent (40 meta-features)"
+- node "Cleaner Agent"
+- node "Feature Agent"
+- node "Modeler Agent (CV + Optuna + Ensemble)"
+- node "Visualizer Agent"
+- node "Explainer Agent (SHAP + LIME + LLM narrative)"
+- node "Data Analyzer Agent (LLM insights + dashboards)"
+
+GROUP 3 — "RL Model Selector (base platform)" (blue):
+- node "PPO Policy (stable-baselines3)"
+
+GROUP 4 — "Local LLM Serving" (green):
+- node "Ollama — Mistral-7B-Instruct"
+
+GROUP 5 — "RAG Optimization Pipeline — NEW" (purple):
+- node "query_transform.py — LLM query rewriting"
+- node "hybrid_search.py — dense + BM25 + RRF fusion"
+- node "reranker.py — cross-encoder"
+- node "graph_retrieval.py — knowledge graph, multi-hop"
+- database node "Qdrant vector DB"
+- database node "BM25 corpus + graph JSON"
+
+GROUP 6 — "Fine-Tuning Suite — NEW" (purple):
+- node "dataset_prep.py — dedupe, filter, balance"
+- node "LoRA / QLoRA / DoRA (Unsloth, PEFT)"
+- node "DPO / ORPO (TRL preference tuning)"
+- node "GaLore full-parameter (experimental)"
+- node "benchmark.py — LLM-as-judge 1-5"
+- node "export_ollama.py — merge, GGUF, Modelfile"
+
+EDGES:
+- "CSV Upload" -> "Route"
+- "Chat / Insights Tab" -> "query_transform.py"
+- "Route" -> "Context Analyzer" (label: ML mode)
+- "Context Analyzer" -> "Profiler Agent" -> "Cleaner Agent" -> "Feature Agent" -> "Modeler Agent" -> "Visualizer Agent" -> "Explainer Agent"
+- "Route" -> "Data Analyzer Agent" (label: Analysis mode)
+- "Profiler Agent" -> "PPO Policy" (dashed, label: meta-features)
+- "PPO Policy" -> "Modeler Agent" (dashed, label: top-3 model recommendations)
+- "Explainer Agent" <-> "hybrid_search.py" (label: retrieve + index)
+- "Data Analyzer Agent" <-> "hybrid_search.py" (label: retrieve + index)
+- "query_transform.py" -> "hybrid_search.py" -> "reranker.py"
+- "hybrid_search.py" <-> "Qdrant vector DB"
+- "hybrid_search.py" <-> "BM25 corpus + graph JSON"
+- "graph_retrieval.py" <-> "BM25 corpus + graph JSON"
+- "Data Analyzer Agent" <-> "graph_retrieval.py" (label: multi-hop facts)
+- "Explainer Agent" -> "dataset_prep.py" (label: narratives as training data)
+- "dataset_prep.py" -> "LoRA / QLoRA / DoRA"
+- "dataset_prep.py" -> "DPO / ORPO"
+- "dataset_prep.py" -> "GaLore full-parameter"
+- "LoRA / QLoRA / DoRA" -> "benchmark.py"
+- "DPO / ORPO" -> "benchmark.py"
+- "GaLore full-parameter" -> "benchmark.py"
+- "benchmark.py" -> "export_ollama.py" -> "Ollama — Mistral-7B-Instruct"
+- "Ollama — Mistral-7B-Instruct" -> "Context Analyzer", "Explainer Agent", "Data Analyzer Agent", "query_transform.py" (label: local inference, no API keys)
+
+Add a legend: blue = base platform (built with teammates), purple = fine-tuning + RAG work (built independently), green = local infrastructure.
+
+────────────────────────── PROMPT END ──────────────────────────

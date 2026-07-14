@@ -48,7 +48,7 @@ class PipelineState(TypedDict, total=False):
     # =====================================================================
     task_type: str                   # 'classification' or 'regression'
     profile_report: Dict[str, Any]   # {column_types, statistics, quality_score, warnings, n_rows, n_cols}
-    meta_features: Any               # np.array of 32 meta-features for RL selector
+    meta_features: Any               # np.array of 40 meta-features for RL selector (see meta_features.py)
 
     # =====================================================================
     # CLEANER OUTPUTS

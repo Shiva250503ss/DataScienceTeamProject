@@ -350,10 +350,12 @@ def _render_custom_chart_builder(enriched_df: pd.DataFrame, profile) -> None:
 def render() -> None:
     """Render the full AI Dashboard Generator UI inside the current Streamlit tab."""
 
-    # ── Groq credentials from .env / environment ─────────────────────────────
+    # ── LLM settings from .env / environment ─────────────────────────────────
     import os
     from dotenv import load_dotenv
     load_dotenv()
+    _ollama_url   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    _ollama_model = os.getenv("OLLAMA_MODEL", "mistral:7b-instruct")
     _gemini_key   = os.getenv("GEMINI_API_KEY", "")
     _gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     _groq_key     = os.getenv("GROQ_API_KEY", "")
@@ -361,18 +363,22 @@ def render() -> None:
 
     init_session_state(st)
 
-    # ── Auto-connect LLM on first load — Gemini primary, Groq fallback ───────
+    # ── Auto-connect LLM on first load — local Ollama primary ────────────────
+    # Cloud clients (Gemini/Groq) are attached as fallback only if keys exist.
     if st.session_state.get("chat_llm_client") is None:
-        from services.llm_clients import GeminiClient, GroqClient
+        from services.llm_clients import OllamaClient, GeminiClient, GroqClient
+        _cloud_fb = None
         if _gemini_key:
-            _fallback = GroqClient(api_key=_groq_key, model=_groq_model) if _groq_key else None
-            st.session_state.chat_llm_client = GeminiClient(
-                api_key=_gemini_key, model=_gemini_model, fallback_client=_fallback
-            )
-            st.session_state.chat_llm_model = f"{_gemini_model} (+ Groq fallback)" if _fallback else _gemini_model
+            _groq_fb = GroqClient(api_key=_groq_key, model=_groq_model) if _groq_key else None
+            _cloud_fb = GeminiClient(api_key=_gemini_key, model=_gemini_model, fallback_client=_groq_fb)
         elif _groq_key:
-            st.session_state.chat_llm_client = GroqClient(api_key=_groq_key, model=_groq_model)
-            st.session_state.chat_llm_model  = _groq_model
+            _cloud_fb = GroqClient(api_key=_groq_key, model=_groq_model)
+        st.session_state.chat_llm_client = OllamaClient(
+            base_url=_ollama_url, model=_ollama_model, fallback_client=_cloud_fb
+        )
+        st.session_state.chat_llm_model = (
+            f"{_ollama_model} (local Ollama)" + (" + cloud fallback" if _cloud_fb else "")
+        )
 
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel", type=["csv", "xlsx", "xls"], key="dg_uploader"
@@ -458,35 +464,43 @@ def render() -> None:
 
         st.divider()
         st.subheader("🤖 Chat LLM")
-        st.caption("Gemini 2.5 Flash (primary) · Groq fallback · auto-loaded from .env")
+        st.caption("Mistral-7B-Instruct via local Ollama (primary) · optional cloud fallback from .env")
 
         if st.session_state.get("chat_llm_model"):
             st.success(f"Connected: **{st.session_state.chat_llm_model}**")
         else:
-            st.warning("No LLM connected — add GEMINI_API_KEY or GROQ_API_KEY to .env")
+            st.warning("No LLM connected — start Ollama (`ollama serve`) and pull `mistral:7b-instruct`")
 
         with st.expander("Manual override", expanded=False):
+            chat_ollama_model = st.text_input(
+                "Ollama model (local, no key)", value=_ollama_model,
+                placeholder="mistral:7b-instruct", key="dg_chat_ollama_model",
+            )
             chat_gemini_key = st.text_input(
-                "Gemini API key", value=_gemini_key, type="password",
+                "Gemini API key (optional cloud fallback)", value=_gemini_key, type="password",
                 placeholder="AIza...", key="dg_chat_gemini_key",
             )
             chat_groq_key = st.text_input(
-                "Groq API key (fallback)", value=_groq_key, type="password",
+                "Groq API key (optional cloud fallback)", value=_groq_key, type="password",
                 placeholder="gsk_...", key="dg_chat_groq_key",
             )
             if st.button("Reconnect LLM", use_container_width=True, key="dg_connect_chat"):
-                from services.llm_clients import GeminiClient, GroqClient
+                from services.llm_clients import OllamaClient, GeminiClient, GroqClient
+                _fb = None
                 if chat_gemini_key:
-                    _fb = GroqClient(api_key=chat_groq_key, model=_groq_model) if chat_groq_key else None
-                    st.session_state.chat_llm_client = GeminiClient(
-                        api_key=chat_gemini_key, model=_gemini_model, fallback_client=_fb
-                    )
-                    st.session_state.chat_llm_model = (
-                        f"{_gemini_model} (+ Groq fallback)" if _fb else _gemini_model
-                    )
+                    _groq_fb = GroqClient(api_key=chat_groq_key, model=_groq_model) if chat_groq_key else None
+                    _fb = GeminiClient(api_key=chat_gemini_key, model=_gemini_model, fallback_client=_groq_fb)
                 elif chat_groq_key:
-                    st.session_state.chat_llm_client = GroqClient(api_key=chat_groq_key, model=_groq_model)
-                    st.session_state.chat_llm_model  = _groq_model
+                    _fb = GroqClient(api_key=chat_groq_key, model=_groq_model)
+                st.session_state.chat_llm_client = OllamaClient(
+                    base_url=_ollama_url,
+                    model=chat_ollama_model or _ollama_model,
+                    fallback_client=_fb,
+                )
+                st.session_state.chat_llm_model = (
+                    f"{chat_ollama_model or _ollama_model} (local Ollama)"
+                    + (" + cloud fallback" if _fb else "")
+                )
                 st.rerun()
 
         st.divider()
@@ -495,11 +509,32 @@ def render() -> None:
 
         provider = st.selectbox(
             "Provider",
-            ["None (rule-based)", "Gemini (primary)", "Groq (fallback)"],
+            ["None (rule-based)", "Ollama (local, no key)", "Gemini (cloud)", "Groq (cloud)"],
             key="dg_provider",
         )
 
-        if provider == "Gemini (primary)":
+        if provider == "Ollama (local, no key)":
+            dash_ollama_model = st.text_input(
+                "Ollama model", value=_ollama_model,
+                placeholder="mistral:7b-instruct", key="dg_ollama_model",
+            )
+            if st.button("Apply to Dashboard", use_container_width=True, key="dg_apply_ollama"):
+                from services.llm_clients import OllamaClient
+                _tmp = OllamaClient(base_url=_ollama_url, model=dash_ollama_model or _ollama_model)
+                n = len(profile.numeric_columns) + len(profile.categorical_columns)
+                with st.spinner(f"Analyzing {n} columns with local Mistral…"):
+                    try:
+                        new_edf, new_spec = DashboardGenerator.generate(
+                            df, profile, llm_client=_tmp, llm_model=dash_ollama_model or _ollama_model
+                        )
+                        st.session_state.enriched_df    = new_edf
+                        st.session_state.dashboard_spec = new_spec
+                        st.session_state.llm_enhanced   = True
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Ollama error: {exc}")
+
+        elif provider == "Gemini (cloud)":
             dash_gemini_key = st.text_input(
                 "Gemini API key", value=_gemini_key, type="password",
                 placeholder="AIza...", key="dg_gemini_key",
@@ -521,7 +556,7 @@ def render() -> None:
                     except Exception as exc:
                         st.error(f"Enhancement error: {exc}")
 
-        elif provider == "Groq (fallback)":
+        elif provider == "Groq (cloud)":
             dash_groq_key = st.text_input(
                 "Groq API key", value=_groq_key, type="password",
                 placeholder="gsk_...", key="dg_groq_key",

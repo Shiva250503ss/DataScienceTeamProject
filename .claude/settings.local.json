@@ -19,7 +19,18 @@
       "Bash(grep -n \"^\\\\\\\\\\\\\\\\subsection\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
       "Bash(tasklist)",
       "Bash(grep -cE \"^\\\\\\\\\\\\\\\\begin\\\\{figure\\\\}\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
-      "Bash(grep -cE \"^\\\\\\\\\\\\\\\\begin\\\\{equation\\\\}|^\\\\\\\\\\\\\\\\begin\\\\{align\\\\}\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")"
+      "Bash(grep -cE \"^\\\\\\\\\\\\\\\\begin\\\\{equation\\\\}|^\\\\\\\\\\\\\\\\begin\\\\{align\\\\}\" \"c:/CUB/sem2/ml/proj/DataScienceTeamProject/main.tex\")",
+      "PowerShell(Get-Content agents\\\\data_analyzer.py | Select-Object -Skip 400 | Select-String -Pattern '^\\\\s{4}def |^class |^def ' | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell(Select-String -Path agents\\\\visualizer.py -Pattern '^\\\\s{4}def |^class |^def ' | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell($gitPaths = @\\(\"$env:ProgramFiles\\\\Git\\\\bin\\\\git.exe\", \"$env:ProgramFiles\\\\Git\\\\cmd\\\\git.exe\", \"$env:LOCALAPPDATA\\\\Programs\\\\Git\\\\cmd\\\\git.exe\"\\); $git = $gitPaths | Where-Object { Test-Path $_ } | Select-Object -First 1; if \\($git\\) { Write-Output \"FOUND: $git\"; & $git log --oneline -20; & $git status -sb } else { Write-Output \"git not found in common locations\" })",
+      "PowerShell($git = \"C:\\\\Users\\\\sshiv\\\\AppData\\\\Local\\\\GitHubDesktop\\\\app-3.6.2\\\\resources\\\\app\\\\git\\\\cmd\\\\git.exe\"; & $git log --oneline -25; Write-Output \"---BRANCHES---\"; & $git branch -a; Write-Output \"---AUTHORS---\"; & $git shortlog -sn --all 2>$null)",
+      "PowerShell(python -m finetuning.dataset_prep --n-synthetic 120)",
+      "PowerShell(python -m pip install requests --quiet)",
+      "PowerShell(python -c \"import json,sys; r=json.loads\\(sys.stdin.read\\(\\)\\); print\\(r['input'][:400]\\); print\\('---OUTPUT---'\\); print\\(r['output']\\)\")",
+      "PowerShell(python -c \"import json; r=json.loads\\(open\\('finetuning/data/train.jsonl',encoding='utf-8'\\).readline\\(\\)\\); print\\(r['input'][:420]\\); print\\('---OUTPUT---'\\); print\\(r['output']\\)\")",
+      "PowerShell(python -m finetuning.dataset_prep --n-synthetic 800)",
+      "PowerShell(python -c \"import json; rows=[json.loads\\(l\\) for l in open\\('finetuning/data/train.jsonl',encoding='utf-8'\\)]; r=rows[3]; print\\(r['input'][:380]\\); print\\('---OUTPUT---'\\); print\\(r['output']\\); print\\('---'\\); print\\(len\\(rows\\),'train rows'\\)\")",
+      "PowerShell(Remove-Item -Recurse -Force rag_store -Confirm:$false)"
     ]
   }
 }

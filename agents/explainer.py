@@ -248,16 +248,25 @@ class ExplainerAgent(BaseAgent):
                 explanations['charts'].update(interaction_chart)
 
         # =====================================================================
-        # Step 4: LLM Global Narrative
+        # Step 4: LLM Global Narrative (RAG-augmented)
+        # Retrieve similar explanations from PAST pipeline runs (hybrid
+        # search + cross-encoder rerank over Qdrant/BM25) and hand them to
+        # the LLM as reference material — improves consistency and lets the
+        # narrative reference recurring patterns across datasets.
         # =====================================================================
         self.log("Step 4: Generating LLM explanation narrative...")
         metric_name = 'Accuracy' if task_type == 'classification' else 'R²'
         metric_value = cv_scores.get(model_name, state.get('ensemble_score', 0))
 
+        rag_context = self._retrieve_rag_context(state, shap_importance if shap_results else None)
+        if rag_context:
+            self.log(f"  RAG: retrieved {len(rag_context)} reference documents from past runs")
+
         global_narrative = self._generate_global_narrative(
             model_name, task_type, target_col, metric_name, metric_value,
             shap_importance if shap_results else None,
             state=state,
+            rag_context=rag_context,
         )
         explanations['global_narrative'] = global_narrative
 
@@ -282,6 +291,18 @@ class ExplainerAgent(BaseAgent):
         )
         explanations['charts']['summary_dashboard'] = summary_chart
 
+        # =====================================================================
+        # Step 7: Persist narratives + index this run into the RAG knowledge
+        # base (Qdrant + BM25 mirror + knowledge graph). Persisted narratives
+        # also feed finetuning/dataset_prep.py as REAL training examples.
+        # =====================================================================
+        self.log("Step 7: Persisting narratives and indexing into RAG store...")
+        try:
+            self._persist_and_index(state, explanations, explain_dir,
+                                    shap_results[1] if shap_results else None)
+        except Exception as e:
+            self.log(f"  RAG indexing skipped (non-fatal): {e}")
+
         # Update pipeline state
         state['explanations'] = explanations
         state['explain_dir'] = explain_dir
@@ -289,6 +310,98 @@ class ExplainerAgent(BaseAgent):
 
         self.log(f"Explainability complete! {len(explanations['charts'])} charts in {explain_dir}")
         return state
+
+    # =========================================================================
+    # RAG INTEGRATION
+    # =========================================================================
+
+    def _retrieve_rag_context(self, state: Dict, importance) -> List[str]:
+        """
+        Hybrid search + cross-encoder rerank over past runs' explanations.
+        Query = dataset domain + target + top SHAP features, i.e. "what did
+        we conclude on similar problems before". Returns [] when the RAG
+        stack is unavailable — the narrative simply runs without references.
+        """
+        try:
+            from rag.reranker import retrieve_and_rerank
+            top_feats = (importance.head(5)['feature'].tolist()
+                         if importance is not None else [])
+            query = (f"explanation of {state.get('task_type', '')} model for "
+                     f"target {state.get('target_column', '')} "
+                     f"driven by {', '.join(top_feats)}")
+            docs = retrieve_and_rerank(query, top_k=3)
+            # Only reference other datasets/runs — quoting this run back at
+            # itself adds nothing.
+            this_ds = state.get('dataset_name', '')
+            return [d['text'][:400] for d in docs
+                    if d.get('dataset_name') != this_ds]
+        except Exception as e:
+            self.log(f"  RAG retrieval skipped (non-fatal): {e}")
+            return []
+
+    def _persist_and_index(self, state: Dict, explanations: Dict,
+                           explain_dir: str, importance) -> None:
+        """
+        1. Save local narratives (+ their SHAP context) as JSON so future
+           fine-tuning dataset builds can harvest them as real examples.
+        2. Index global + local narratives into Qdrant/BM25.
+        3. Record structured facts (feature -> target SHAP strengths, top
+           feature correlations) into the knowledge graph for multi-hop Q&A.
+        """
+        import json as _json
+        dataset_name = state.get('dataset_name', 'Dataset')
+
+        # 1. Persist local narratives for dataset_prep.py harvesting
+        local_narratives = explanations.get('local_narratives', [])
+        if local_narratives:
+            with open(os.path.join(explain_dir, 'local_narratives.json'),
+                      'w', encoding='utf-8') as f:
+                _json.dump(local_narratives, f, ensure_ascii=False, indent=1)
+
+        # 2. Index into the RAG document store
+        from rag.indexer import RagIndexer
+        docs = []
+        if explanations.get('global_narrative'):
+            docs.append({
+                'text': explanations['global_narrative'],
+                'doc_type': 'explanation',
+                'dataset_name': dataset_name,
+                'metadata': {'kind': 'global', 'model': explanations.get('model_name')},
+            })
+        for n in local_narratives:
+            docs.append({
+                'text': f"Prediction {n.get('prediction')}: {n.get('narrative', '')}",
+                'doc_type': 'explanation',
+                'dataset_name': dataset_name,
+                'metadata': {'kind': 'local', 'index': n.get('index')},
+            })
+        n_added = RagIndexer().index_documents(docs)
+        self.log(f"  RAG: indexed {n_added} new documents")
+
+        # 3. Knowledge graph facts
+        from rag.graph_retrieval import KnowledgeGraph
+        shap_pairs = ([(row['feature'], float(row['importance']))
+                       for _, row in importance.iterrows()]
+                      if importance is not None else [])
+        correlations = []
+        X = state.get('X')
+        if X is not None and hasattr(X, 'corr') and len(X.columns) > 1:
+            corr = X.corr().abs()
+            pairs = []
+            cols = corr.columns.tolist()
+            for i in range(len(cols)):
+                for j in range(i + 1, len(cols)):
+                    if corr.iloc[i, j] > 0.6:  # only strong relationships
+                        pairs.append((cols[i], cols[j], float(corr.iloc[i, j])))
+            correlations = sorted(pairs, key=lambda p: p[2], reverse=True)[:8]
+        KnowledgeGraph().record_run(
+            dataset_name=dataset_name,
+            target_column=state.get('target_column', 'target'),
+            shap_importance=shap_pairs,
+            correlations=correlations,
+            task_type=state.get('task_type', ''),
+        )
+        self.log("  RAG: knowledge graph updated")
 
     # =========================================================================
     # STEP 1: SHAP VALUES
@@ -331,10 +444,14 @@ class ExplainerAgent(BaseAgent):
                     self.log(f"  TreeExplainer failed ({tree_err}), falling back to KernelExplainer")
                     n_explain = min(50, len(X))
                     X_explain = X.sample(n=n_explain, random_state=42)
+                    # Background set for KernelExplainer: a small sample of the
+                    # data distribution (fixes prior NameError — 'background'
+                    # was referenced here before being defined)
+                    background = X.sample(n=min(50, len(X)), random_state=0)
                     explainer = shap.KernelExplainer(
                         model.predict_proba if hasattr(model, 'predict_proba') and task_type == 'classification'
                         else model.predict,
-                        background.iloc[:min(50, len(background))]
+                        background
                     )
                     shap_values = explainer.shap_values(X_explain, nsamples=100)
                     X = X_explain
@@ -724,8 +841,14 @@ class ExplainerAgent(BaseAgent):
                                     target_col: str, metric_name: str,
                                     metric_value: float,
                                     importance: Optional[pd.DataFrame],
-                                    state: Optional[Dict] = None) -> str:
-        """Generate a structured pipeline narrative using the LLM."""
+                                    state: Optional[Dict] = None,
+                                    rag_context: Optional[List[str]] = None) -> str:
+        """Generate a structured pipeline narrative using the LLM.
+
+        rag_context: reference explanations retrieved from PAST runs via
+        hybrid search + reranking — appended to the prompt so the LLM can
+        keep terminology consistent and point out recurring patterns.
+        """
 
         # ── Extract pipeline context from state ───────────────────────────────
         state = state or {}
@@ -857,6 +980,18 @@ class ExplainerAgent(BaseAgent):
             top_features_str = "  SHAP values not available for this model type."
 
         # ── Build and call prompt ──────────────────────────────────────────────
+        rag_section = ""
+        if rag_context:
+            refs = "\n\n".join(f"[Reference {i+1}] {r}" for i, r in enumerate(rag_context))
+            rag_section = (
+                "\n\n━━━ REFERENCE INSIGHTS FROM PAST ANALYSES (retrieved) ━━━\n"
+                f"{refs}\n"
+                "Use these ONLY for style consistency and to note recurring "
+                "patterns across datasets. Do not copy numbers from them.\n"
+            )
+
+        # References go AFTER the main prompt so the task instructions stay
+        # at the top where instruct models weight them most.
         prompt = PIPELINE_NARRATIVE_PROMPT.format(
             dataset_name=dataset_name,
             target_col=target_col,
@@ -873,7 +1008,7 @@ class ExplainerAgent(BaseAgent):
             metric_name=metric_name,
             best_score=best_score,
             top_features=top_features_str,
-        )
+        ) + rag_section
 
         try:
             narrative = self.ask_llm(prompt)
@@ -948,7 +1083,15 @@ class ExplainerAgent(BaseAgent):
                 'prediction': str(prediction),
                 'actual': str(y.iloc[idx]),
                 'confidence': confidence_text,
-                'narrative': narrative
+                'narrative': narrative,
+                # The SHAP context that produced this narrative — persisted to
+                # local_narratives.json so finetuning/dataset_prep.py can
+                # harvest (input, output) pairs from real runs.
+                'shap_context': (
+                    f"Prediction: {prediction} {confidence_text}\n"
+                    f"Top factors behind this prediction (SHAP values):\n"
+                    f"{shap_explanation}"
+                ),
             })
 
         return narratives
