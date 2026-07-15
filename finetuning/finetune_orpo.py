@@ -79,6 +79,7 @@ def main():
     print(f"Preference pairs — train: {len(train_ds)} | val: {len(val_ds)}")
 
     # ── 3. Train ──────────────────────────────────────────────────────────
+    os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "datapilot-finetuning")
     tracker = RunTracker("orpo", output_dir)
     tracker.start()
 
@@ -105,7 +106,7 @@ def main():
             max_length=MAX_SEQ_LENGTH,
             max_prompt_length=MAX_SEQ_LENGTH - 512,
             seed=SEED,
-            report_to="none",
+            report_to=os.getenv("FT_REPORT_TO", "mlflow"),
         ),
     )
     trainer.train()

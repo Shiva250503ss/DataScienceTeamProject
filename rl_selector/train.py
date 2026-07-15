@@ -1,18 +1,18 @@
-# rl_selector/train.py
+﻿# rl_selector/train.py
 
 """
 PPO Training Script for the RL Model Selector.
 
 This script trains a PPO agent that learns to recommend the best ML model
-for a given dataset, based on 32 meta-features extracted from the data.
+for a given dataset, based on 40 meta-features extracted from the data (shared meta_features.py).
 
 Training pipeline:
   1. Collect REAL training data from OpenML (via data_collection.py)
      - Downloads diverse real-world datasets
-     - Extracts 32 meta-features per dataset
-     - Trains all 10-11 candidate models and records real CV scores
+     - Extracts 40 meta-features per dataset
+     - Trains all candidate models (8 clf / 9 reg, matching production) and records real CV scores
   2. Load training data into the Gymnasium environment
-  3. Train PPO agent (3-layer MLP: 256→128→64) for N timesteps
+  3. Train PPO agent (3-layer MLP: 256â†’128â†’64) for N timesteps
   4. Save trained model to disk for inference
 
 Usage:
@@ -47,7 +47,7 @@ def train_rl_selector(task_type: str = 'classification',
     Training process:
       1. Load existing real training data (or collect new from OpenML)
       2. Create Gymnasium environment
-      3. Initialize PPO with 3-layer MLP policy (256→128→64)
+      3. Initialize PPO with 3-layer MLP policy (256â†’128â†’64)
       4. Train for specified timesteps
       5. Save trained model to disk
     
@@ -67,7 +67,7 @@ def train_rl_selector(task_type: str = 'classification',
     data_path = f"{config.PPO_MODEL_PATH}/{task_type}_training_data.json"
     
     if collect_new or not os.path.exists(data_path):
-        print(f"\n📡 Collecting REAL training data from OpenML...")
+        print(f"\nðŸ“¡ Collecting REAL training data from OpenML...")
         print(f"   This downloads {n_datasets} real datasets, extracts meta-features,")
         print(f"   and trains all candidate models to record real CV scores.")
         print(f"   First run may take 30-60 minutes. Results are cached for reuse.\n")
@@ -79,7 +79,7 @@ def train_rl_selector(task_type: str = 'classification',
         )
         
         if len(training_data) < 5:
-            print(f"\n⚠ Only collected {len(training_data)} datasets.")
+            print(f"\nâš  Only collected {len(training_data)} datasets.")
             print(f"   The PPO agent needs at least 5 datasets to train effectively.")
             print(f"   Try again with more datasets or check your internet connection.")
             return None
@@ -88,7 +88,7 @@ def train_rl_selector(task_type: str = 'classification',
         with open(data_path, 'r') as f:
             training_data = json.load(f)
     
-    print(f"\n📊 Training data: {len(training_data)} real-world datasets")
+    print(f"\nðŸ“Š Training data: {len(training_data)} real-world datasets")
     
     # Show data summary
     if training_data:
@@ -96,7 +96,7 @@ def train_rl_selector(task_type: str = 'classification',
         for entry in training_data:
             scores = list(entry['model_scores'].values())
             all_scores.append(max(scores))
-        print(f"   Best achievable score range: {min(all_scores):.4f} — {max(all_scores):.4f}")
+        print(f"   Best achievable score range: {min(all_scores):.4f} â€” {max(all_scores):.4f}")
         print(f"   Average best score: {np.mean(all_scores):.4f}")
     
     # Step 2: Create environment
@@ -119,17 +119,17 @@ def train_rl_selector(task_type: str = 'classification',
     )
     
     # Step 4: Train
-    print(f"\n🏋️ Training PPO for {total_timesteps} timesteps...")
+    print(f"\nðŸ‹ï¸ Training PPO for {total_timesteps} timesteps...")
     model.learn(total_timesteps=total_timesteps)
     
     # Step 5: Save trained model
     model_path = f"{config.PPO_MODEL_PATH}/ppo_{task_type[:3]}.zip"
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     model.save(model_path)
-    print(f"\n💾 Model saved to {model_path}")
+    print(f"\nðŸ’¾ Model saved to {model_path}")
     
     # Quick evaluation
-    print("\n📈 Quick evaluation on training data:")
+    print("\nðŸ“ˆ Quick evaluation on training data:")
     correct = 0
     total_eval = min(50, len(training_data))
     regrets = []
@@ -177,3 +177,4 @@ if __name__ == "__main__":
             collect_new=args.collect,
             n_datasets=args.n_datasets
         )
+

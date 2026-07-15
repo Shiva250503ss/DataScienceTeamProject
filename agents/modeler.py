@@ -140,6 +140,10 @@ class ModelerAgent(BaseAgent):
             X = X.drop(columns=cols_to_drop)
             self.log(f"Dropped {len(cols_to_drop)} non-numeric columns before training: {cols_to_drop}")
         X = X.fillna(0).replace([float('inf'), float('-inf')], 0)
+        # Clip to float32 range — sklearn casts internally and errors on
+        # finite float64 values beyond ±3.4e38 (see feature.py final guard).
+        f32_max = float(np.finfo(np.float32).max)
+        X = X.clip(lower=-f32_max, upper=f32_max)
 
         if X.shape[1] == 0:
             raise ValueError("No numeric features left after cleaning — cannot train.")
@@ -633,12 +637,6 @@ class ModelerAgent(BaseAgent):
                 'C': trial.suggest_float('C', 0.1, 50.0, log=True),
                 'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
                 'cache_size': 1000,
-            }
-
-        if model_name == 'SVR':
-            return {
-                'C': trial.suggest_float('C', 0.01, 100.0, log=True),
-                'kernel': trial.suggest_categorical('kernel', ['rbf', 'linear']),
             }
 
         if model_name in ('KNeighborsClassifier', 'KNeighborsRegressor'):

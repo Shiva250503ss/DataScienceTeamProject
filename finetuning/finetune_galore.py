@@ -88,6 +88,7 @@ def main():
     print(f"Train: {len(train_ds)} | Val: {len(val_ds)}")
 
     # ── 3. Train with the GaLore optimizer ────────────────────────────────
+    os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "datapilot-finetuning")
     tracker = RunTracker("galore", output_dir)
     tracker.start()
 
@@ -120,7 +121,7 @@ def main():
                         f"update_proj_gap={args.update_proj_gap}, scale=0.25"),
             gradient_checkpointing=True,
             seed=SEED,
-            report_to="none",
+            report_to=os.getenv("FT_REPORT_TO", "mlflow"),
         ),
     )
     trainer.train()

@@ -25,7 +25,7 @@ Say this when they ask "walk me through your project":
 These are true statements about the repo. If an interviewer digs, you must not be surprised:
 
 1. **`api/`, `db/`, `tasks/` are empty stubs.** There is no FastAPI backend, no database models, no Celery tasks. The docker-compose worker service references `tasks.worker`, which does not exist yet. Say: *"Those are reserved for a planned FastAPI/Celery layer. The platform currently runs fully through Streamlit."*
-2. **Two meta-feature systems exist.** The production path uses **40** meta-features (`meta_features.py`, shared with the real PPO training in `RL_MODEL_PPO_CORRECT/`). The older `rl_selector/environment.py` + `data_collection.py` use **32** — that was the first iteration. The shipped `.pkl` models at the repo root were trained on the 40-feature version. `test_agents.py` still asserts 32, so that one check is stale.
+2. **There used to be two meta-feature systems; now there's one.** The production path uses **40** meta-features (`meta_features.py`, shared with the real PPO training in `RL_MODEL_PPO_CORRECT/`). `rl_selector/environment.py` + `data_collection.py` originally embedded a diverging 32-feature extractor from an earlier iteration; both were reconciled to import the shared 40-feature `meta_features.py` and the production sklearn model lists. `test_agents.py` asserts `N_META_FEATURES` (40) and passes.
 3. **The PPO models in production** (`rl_model_selector_classification.pkl`, `rl_model_selector_regression.pkl`) were trained by `RL_MODEL_PPO_CORRECT/train_rl_model_selector.py` on OpenML datasets, choosing among **sklearn-only models** (8 classifiers, 9 regressors). XGBoost/LightGBM/CatBoost appear in the UI list but the RL agent never recommends them — a user can still select them manually.
 4. **The LLM was previously Gemini + Groq (cloud).** It is now Mistral-7B via Ollama (local) — that swap was part of my independent work. The optional cloud fallback still exists if keys are set in `.env`.
 5. **The Insights tab embeds a second sub-project** (`ai_dashboard_generator/`) with its own services and LLM clients. It was developed separately and mounted into the main UI via `ui/insights_tab.py`.
@@ -161,7 +161,7 @@ These are true statements about the repo. If an interviewer digs, you must not b
 
 ### The RL Model Selector
 
-**Files:** `rl_selector/environment.py`, `train.py`, `data_collection.py` (legacy 32-feature path), `inference.py` (production), `RL_MODEL_PPO_CORRECT/train_rl_model_selector.py` (the script that trained the shipped pkls, 40 features), `benchmark/` (evaluation harness incl. OpenML-CC18 comparison vs AutoML baselines).
+**Files:** `rl_selector/environment.py`, `train.py`, `data_collection.py` (all now share the 40-feature `meta_features.py` extractor), `inference.py` (production), `RL_MODEL_PPO_CORRECT/train_rl_model_selector.py` (the script that trained the shipped pkls, 40 features), `benchmark/` (evaluation harness incl. OpenML-CC18 comparison vs AutoML baselines).
 
 **What it does.** Model selection framed as a one-step RL episode. Observation: the 40 meta-features. Action: pick one model from a fixed list (8 sklearn classifiers or 9 regressors). Reward: that model's real cross-validated score on that dataset, +0.1 bonus if it picked within 0.01 of the best. Training data: hundreds of OpenML datasets where ALL candidate models were trained and scored, so the environment can reward any action instantly (a form of offline/bandit RL). PPO with a 256→128→64 MLP policy. At inference (`inference.py`), the policy network's action probabilities are read directly and the top-3 become recommendations with confidences; sensible defaults if the pkl is missing.
 
@@ -307,7 +307,7 @@ Outputs both SFT data (input/output) and preference pairs (prompt/chosen/rejecte
 
 - **`docker-compose.yml`** — dev: Postgres, Redis, Qdrant, Ollama. **`docker-compose.prod.yml`** — adds the Streamlit app container (with `OLLAMA_BASE_URL=http://ollama:11434`) and an optional Celery worker profile (worker code not yet implemented). **`Dockerfile`** — two-stage build, non-root user, healthcheck.
 - **`requirements.txt`** — platform deps incl. RAG (sentence-transformers, rank-bm25, qdrant-client). **`finetuning/requirements-finetuning.txt`** — training deps kept separate because they are heavy and CUDA-specific.
-- **`test_agents.py`** — synthetic-data test of Profiler + Cleaner (types, target detection, imputation, outliers, standardization). Note: its meta-feature count check still says 32 (stale — production is 40).
+- **`test_agents.py`** — synthetic-data test of Profiler + Cleaner (types, target detection, imputation, outliers, standardization). Its meta-feature count check asserts `N_META_FEATURES` (40) and passes.
 - **`benchmark/`** — PPO selector evaluation: regret vs oracle, comparison on OpenML-CC18 against AutoML baselines; results CSVs committed.
 - **`DST_Paper.pdf` / `main.tex`** — the academic write-up of the base platform.
 

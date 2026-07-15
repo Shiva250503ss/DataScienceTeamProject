@@ -14,7 +14,7 @@ Reward design:
     LOW error  ->  HIGH reward   (reward = accuracy or max(0, R2))
     HIGH error ->  LOW  reward
 
-All 32 meta-features are computed from real data -- nothing is hardcoded.
+All 40 meta-features are computed from real data -- nothing is hardcoded.
 """
 
 import numpy as np
@@ -515,7 +515,7 @@ def load_regression_datasets():
 
 
 # =============================================================================
-# EXTRACT 32 META-FEATURES  (all properly computed from real data)
+# EXTRACT 40 META-FEATURES  (all properly computed from real data)
 # =============================================================================
 def extract_meta_features(X, y, task_type='classification'):
     """
@@ -977,7 +977,7 @@ def train_rl_model(task_type='classification', total_timesteps=50_000):
         normalize_advantage=True,
         ent_coef=0.3,            # high entropy → forces diverse model selection
         vf_coef=0.5,
-        policy_kwargs=dict(net_arch=[256, 256, 128]),   # deeper network for 32 meta-features
+        policy_kwargs=dict(net_arch=[256, 256, 128]),   # deeper network for 40 meta-features
         device='cpu',
     )
 

@@ -49,12 +49,29 @@ class RagIndexer:
     # ── Qdrant client (lazy, optional) ────────────────────────────────────
 
     def _qdrant(self):
-        """Lazy Qdrant client; returns None if the server is unreachable."""
+        """
+        Lazy Qdrant client. Preference order:
+          1. Qdrant SERVER at QDRANT_URL (docker-compose / production)
+          2. Qdrant EMBEDDED LOCAL MODE (qdrant-client's on-disk storage at
+             rag_store/qdrant_local) — a real, persistent vector index that
+             needs no server process. Keeps the dense arm working on dev
+             machines without Docker.
+        Returns None only if the qdrant-client library itself is missing.
+        """
         if self._client is None and not self._qdrant_failed:
             try:
                 from qdrant_client import QdrantClient
                 from qdrant_client.models import Distance, VectorParams
-                client = QdrantClient(url=self.qdrant_url, timeout=5)
+                try:
+                    client = QdrantClient(url=self.qdrant_url, timeout=5)
+                    client.get_collections()  # probe: raises if no server
+                except Exception:
+                    local_path = os.path.join(RAG_STORE_DIR, "qdrant_local")
+                    os.makedirs(RAG_STORE_DIR, exist_ok=True)
+                    client = QdrantClient(path=local_path)
+                    print(f"[rag.indexer] Qdrant server unreachable at "
+                          f"{self.qdrant_url} — using embedded local mode "
+                          f"({local_path})")
                 # Create the collection on first contact (idempotent check)
                 existing = [c.name for c in client.get_collections().collections]
                 if self.collection not in existing:
@@ -65,7 +82,7 @@ class RagIndexer:
                     )
                 self._client = client
             except Exception as e:
-                print(f"[rag.indexer] Qdrant unreachable at {self.qdrant_url} ({e}) "
+                print(f"[rag.indexer] qdrant-client unavailable ({e}) "
                       f"— dense index disabled, BM25 mirror still active")
                 self._qdrant_failed = True
         return self._client

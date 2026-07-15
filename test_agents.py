@@ -163,8 +163,9 @@ def test_profiler(df):
 
     # ── Meta-features ─────────────────────────────────────────────────────────
     print("\n  [Meta-Features]")
-    check("Exactly 32 meta-features extracted",
-          len(state["meta_features"]) == 32,
+    from meta_features import N_META_FEATURES
+    check(f"Exactly {N_META_FEATURES} meta-features extracted",
+          len(state["meta_features"]) == N_META_FEATURES,
           f"got {len(state['meta_features'])}")
     check("All meta-features are finite numbers",
           np.all(np.isfinite(state["meta_features"])),

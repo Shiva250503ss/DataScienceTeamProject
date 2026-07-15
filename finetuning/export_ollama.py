@@ -39,14 +39,22 @@ from finetuning.common import (
 EXPORT_DIR = os.path.join(MODELS_DIR, "export")
 
 
-def merge_adapter(technique: str) -> str:
+def merge_adapter(technique: str, backend: str = "unsloth") -> str:
     """
-    Step 1 — Load base in fp16, apply the adapter, merge, save full model.
-    Unsloth's save_pretrained_merged handles dequantize->merge correctly even
-    for adapters trained on a 4-bit base (it merges into fp16 weights).
+    Step 1 — Load base in fp16, apply the adapter, merge (W' = W + BA),
+    save the standalone full model.
+
+    backend="unsloth":       save_pretrained_merged on the Mistral-7B recipe.
+    backend="transformers":  plain PEFT merge_and_unload — reads the
+                             adapter's own base_model_name_or_path, so smoke
+                             adapters (e.g. Qwen2.5-0.5B) merge against the
+                             exact base they were trained on.
     """
+    import json as _json
+
     adapter_path = os.path.join(MODELS_DIR, technique)
-    if not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+    adapter_cfg = os.path.join(adapter_path, "adapter_config.json")
+    if not os.path.exists(adapter_cfg):
         # GaLore saves a full checkpoint, not an adapter — no merge needed
         if os.path.exists(os.path.join(adapter_path, "config.json")):
             print(f"[merge] {technique} is a full checkpoint — skipping merge.")
@@ -58,15 +66,33 @@ def merge_adapter(technique: str) -> str:
         print(f"[merge] Reusing existing merged model at {merged_dir}")
         return merged_dir
 
-    print(f"[merge] Merging {technique} adapter into {BASE_MODEL_HF} (fp16)...")
-    from unsloth import FastLanguageModel
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=adapter_path,
-        max_seq_length=2048,
-        load_in_4bit=True,  # loads adapter on 4-bit base; merge below is fp16
-    )
-    model.save_pretrained_merged(merged_dir, tokenizer,
-                                 save_method="merged_16bit")
+    if backend == "unsloth":
+        print(f"[merge] Merging {technique} adapter into {BASE_MODEL_HF} (fp16, unsloth)...")
+        from unsloth import FastLanguageModel
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=adapter_path,
+            max_seq_length=2048,
+            load_in_4bit=True,  # loads adapter on 4-bit base; merge is fp16
+        )
+        model.save_pretrained_merged(merged_dir, tokenizer,
+                                     save_method="merged_16bit")
+    else:
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        with open(adapter_cfg, "r", encoding="utf-8") as f:
+            base = _json.load(f).get("base_model_name_or_path", BASE_MODEL_HF)
+        print(f"[merge] Merging {technique} adapter into {base} (fp16, transformers)...")
+        # fp16 base (NOT quantized) — merge must happen in full precision,
+        # and the 4-bit PeftModel crash does not affect the fp16 path.
+        model = AutoModelForCausalLM.from_pretrained(
+            base, torch_dtype=torch.float16, device_map="cpu")
+        model = PeftModel.from_pretrained(model, adapter_path)
+        model = model.merge_and_unload()
+        tokenizer = AutoTokenizer.from_pretrained(base)
+        model.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+
     print(f"[merge] Merged fp16 model saved to {merged_dir}")
     return merged_dir
 
@@ -147,12 +173,16 @@ PARAMETER stop "[/INST]"
 def create_in_ollama(modelfile_path: str, model_name: str):
     """Step 4 — register with the local Ollama server."""
     print(f"[ollama] Creating model '{model_name}' ...")
+    # Resolve the ollama binary: PATH first, then OLLAMA_EXE env var
+    # (portable installs, e.g. %USERPROFILE%\ollama-portable\ollama.exe).
+    ollama_bin = os.getenv("OLLAMA_EXE", "ollama")
     try:
-        subprocess.run(["ollama", "create", model_name, "-f", modelfile_path],
+        subprocess.run([ollama_bin, "create", model_name, "-f", modelfile_path],
                        check=True)
     except FileNotFoundError:
         raise SystemExit(
-            "The `ollama` CLI was not found on PATH. Install Ollama, then run:\n"
+            "The `ollama` CLI was not found. Install Ollama (or set OLLAMA_EXE "
+            "to its full path), then run:\n"
             f"  ollama create {model_name} -f {modelfile_path}"
         )
     print(f"""
@@ -178,11 +208,16 @@ def main():
                         help="Path to a llama.cpp checkout")
     parser.add_argument("--model-name", type=str, default="datapilot-explainer",
                         help="Name to register in Ollama")
+    parser.add_argument("--backend", choices=["unsloth", "transformers"],
+                        default="unsloth",
+                        help="Merge backend (transformers for smoke adapters; "
+                             "runs on CPU, no GPU required)")
     args = parser.parse_args()
 
-    require_cuda("export")  # merging needs GPU; GGUF conversion itself is CPU
+    if args.backend == "unsloth":
+        require_cuda("export")  # unsloth merge needs GPU; GGUF conversion is CPU
 
-    merged = merge_adapter(args.technique)
+    merged = merge_adapter(args.technique, backend=args.backend)
     gguf = convert_to_gguf(merged, args.technique, args.quant, args.llama_cpp_dir)
     modelfile = write_modelfile(gguf)
     create_in_ollama(modelfile, args.model_name)

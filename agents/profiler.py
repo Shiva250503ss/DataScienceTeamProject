@@ -578,6 +578,15 @@ class ProfilerAgent(BaseAgent):
             if has_digit.sum() < len(sample) * 0.5:
                 continue
 
+            # Reject multi-number codes (e.g. Titanic cabin "B57 B59 B63"):
+            # stripping letters/whitespace would CONCATENATE the numbers into
+            # one corrupt giant value (57 59 63 -> 575963). If >20% of values
+            # contain two separate digit groups split by whitespace, this is
+            # a code list, not a formatted number.
+            multi_number = sample.str.contains(r'\d\s+\S*\d', regex=True)
+            if multi_number.mean() > 0.20:
+                continue
+
             cleaned = self._clean_numeric_series(series.astype(str))
 
             # Count how many values are valid numbers after cleaning

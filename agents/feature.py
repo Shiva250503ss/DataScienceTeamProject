@@ -148,8 +148,14 @@ class FeatureAgent(BaseAgent):
             X = X.drop(columns=cols_to_drop)
             self.log(f"Dropped non-numeric columns before modeling: {cols_to_drop}")
 
-        # Fill any remaining NaN/inf so sklearn doesn't error
+        # Fill any remaining NaN/inf so sklearn doesn't error.
+        # ALSO clip to float32 range: coerced string columns can produce
+        # finite float64 values beyond float32 (e.g. Titanic 'cabin'
+        # "B57 B59 B63" -> 3e42 after digit concatenation), and sklearn
+        # casts to float32 internally — "value too large for dtype" crash.
         X = X.fillna(0).replace([float('inf'), float('-inf')], 0)
+        f32_max = float(np.finfo(np.float32).max)
+        X = X.clip(lower=-f32_max, upper=f32_max)
 
         self.log(f"Final X shape: {X.shape}, dtypes: {X.dtypes.value_counts().to_dict()}")
 
@@ -187,9 +193,21 @@ class FeatureAgent(BaseAgent):
           - Smoothing prevents overfitting on rare categories
         """
         encoding_info = {}
-        
+
         categorical_cols = [c for c in X.columns if column_types.get(c) == 'categorical']
-        
+
+        # Target encoding needs a NUMERIC target (it maps each category to a
+        # smoothed target mean). For classification the target is still raw
+        # strings at this point — and category_encoders 2.7 crashes on a
+        # string y ("'numpy.ndarray' object has no attribute 'groupby'").
+        # Encode once here; the mapping matches the final target encoding.
+        if pd.api.types.is_numeric_dtype(y):
+            y_numeric = y
+        else:
+            le_y = LabelEncoder()
+            y_numeric = pd.Series(le_y.fit_transform(y.astype(str)),
+                                  index=y.index, name=y.name)
+
         for col in categorical_cols:
             n_unique = X[col].nunique()
             
@@ -221,9 +239,9 @@ class FeatureAgent(BaseAgent):
                 self.log(f"  {col}: One-hot encoded ({n_unique} values -> {len(dummies.columns)} columns)")
             
             else:
-                # High cardinality → Target encoding
+                # High cardinality → Target encoding (numeric y required)
                 te = TargetEncoder(cols=[col], smoothing=1.0)
-                X[col] = te.fit_transform(X[col], y)
+                X[col] = te.fit_transform(X[col], y_numeric)
                 self.encoders[col] = te
                 encoding_info[col] = {
                     'method': 'target',

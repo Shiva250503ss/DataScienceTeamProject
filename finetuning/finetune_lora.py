@@ -85,6 +85,7 @@ def main():
     print(f"Train: {len(train_ds)} | Val: {len(val_ds)}")
 
     # ── 4. Train ──────────────────────────────────────────────────────────
+    os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "datapilot-finetuning")
     tracker = RunTracker("lora", output_dir)
     tracker.start()
 
@@ -110,7 +111,7 @@ def main():
             bf16=True,                # Ampere+; flips to fp16 automatically below
             optim="adamw_8bit",       # 8-bit optimizer states halve optimizer VRAM
             seed=SEED,
-            report_to="none",
+            report_to=os.getenv("FT_REPORT_TO", "mlflow"),
         ),
     )
     trainer.train()

@@ -1,142 +1,126 @@
 # rl_selector/environment.py
 
+"""
+Gymnasium environment for RL-based model selection.
+
+RECONCILED (2026-07): this environment previously used a legacy 32-feature
+observation space and a model list (incl. XGBoost/LightGBM/CatBoost) that the
+shipped production policy was never trained on. It now matches the production
+system exactly:
+
+  - Observation: the 40 meta-features from the shared `meta_features.py`
+    (the same vector ProfilerAgent computes and `inference.py` consumes)
+  - Actions: the exact sklearn model lists from `rl_selector/inference.py`,
+    in the same frozen order (action index N must mean the same model at
+    training and inference time)
+
+Episode structure (contextual bandit):
+  - reset(): observe a random dataset's 40 meta-features
+  - step(a): reward = model a's REAL pre-computed CV score on that dataset,
+             +0.1 bonus for picking within 0.01 of the best; episode ends.
+Training data comes from data_collection.py, which evaluates every candidate
+model on real datasets so the environment can reward any action instantly.
+"""
+
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from typing import Dict, List, Tuple
 
+from meta_features import N_META_FEATURES
+from rl_selector.inference import CLASSIFICATION_MODELS, REGRESSION_MODELS
+
 
 class ModelSelectionEnv(gym.Env):
-    """
-    Custom Gymnasium environment for RL-based model selection.
-    
-    The PPO agent learns which ML model works best for a given dataset
-    by observing 32 meta-features and choosing a model action.
-    
-    How it works:
-      - Observation: 32 meta-features describing a dataset (from ProfilerAgent)
-      - Action:      Select one ML model from the available models
-      - Reward:      The selected model's cross-validation score
-                     + bonus if it picked the best model
-      - Episode:     Single step — observe dataset, pick model, get reward, done.
-    
-    The environment is trained on many datasets (from OpenML or pre-collected)
-    so the PPO agent learns patterns like:
-      "High-dimensional sparse data → XGBoost tends to win"
-      "Small dataset with few features → LogisticRegression is competitive"
-    
-    Owner: Manohar
-    """
-    
+    """One-step model-selection environment over real dataset evaluations."""
+
     def __init__(self, task_type: str = 'classification'):
         super().__init__()
-        
+
         self.task_type = task_type
-        
-        # Define available models per task type
+
+        # Single source of truth for the action space: the SAME frozen lists
+        # inference.py uses to decode policy outputs (8 clf / 9 reg models).
         if task_type == 'classification':
-            self.models = [
-                'XGBClassifier', 'LGBMClassifier', 'CatBoostClassifier',
-                'RandomForestClassifier', 'ExtraTreesClassifier',
-                'GradientBoostingClassifier', 'LogisticRegression',
-                'SVC', 'KNeighborsClassifier', 'GaussianNB'
-            ]
+            self.models = list(CLASSIFICATION_MODELS)
         else:
-            self.models = [
-                'XGBRegressor', 'LGBMRegressor', 'CatBoostRegressor',
-                'RandomForestRegressor', 'ExtraTreesRegressor',
-                'GradientBoostingRegressor', 'Ridge', 'Lasso',
-                'ElasticNet', 'SVR', 'KNeighborsRegressor'
-            ]
-        
-        # Observation space: 32 normalized meta-features (all between 0 and 1)
+            self.models = list(REGRESSION_MODELS)
+
+        # Observation: 40 normalized meta-features in [0, 1]
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(32,), dtype=np.float32
+            low=0, high=1, shape=(N_META_FEATURES,), dtype=np.float32
         )
-        
-        # Action space: pick one model
         self.action_space = spaces.Discrete(len(self.models))
-        
-        # Training data: list of {meta_features, model_scores}
+
+        # Training data: list of {meta_features: [40 floats], model_scores: {name: score}}
         self.training_data = []
         self.current_idx = 0
-    
+
     def load_training_data(self, data: List[Dict]):
         """
-        Load pre-computed training data.
-        
-        Each entry should have:
-          - 'meta_features': list of 32 floats
-          - 'model_scores': dict mapping model name → CV score
-        
-        Args:
-            data: List of dataset records with meta-features and model scores
+        Load pre-computed training data (from data_collection.py).
+
+        Each entry must have:
+          - 'meta_features': list of 40 floats (shared extractor output)
+          - 'model_scores':  dict mapping model name -> real CV score
         """
+        # Validate up front — a 32-feature legacy file would silently
+        # distribution-shift the policy, so fail loudly instead.
+        for i, entry in enumerate(data):
+            n = len(entry.get('meta_features', []))
+            if n != N_META_FEATURES:
+                raise ValueError(
+                    f"Training entry {i} has {n} meta-features, expected "
+                    f"{N_META_FEATURES}. Re-collect with the current "
+                    f"data_collection.py (legacy 32-feature files are not "
+                    f"compatible)."
+                )
         self.training_data = data
         self.current_idx = 0
-    
+
     def reset(self, seed=None, options=None):
-        """
-        Reset environment to a random dataset from training data.
-        
-        Returns:
-            observation: 32 meta-features of the selected dataset
-            info: empty dict (Gymnasium requirement)
-        """
+        """Observe a random dataset's meta-features."""
         super().reset(seed=seed)
-        
+
         if len(self.training_data) == 0:
-            # Return random observation if no training data loaded
-            return np.random.rand(32).astype(np.float32), {}
-        
-        # Pick a random dataset
-        self.current_idx = np.random.randint(0, len(self.training_data))
+            raise RuntimeError(
+                "No training data loaded. Call load_training_data() first "
+                "(collect it via: python -m rl_selector.data_collection)."
+            )
+
+        self.current_idx = int(self.np_random.integers(0, len(self.training_data)))
         data = self.training_data[self.current_idx]
-        
         return np.array(data['meta_features'], dtype=np.float32), {}
-    
+
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """
-        Execute the model selection action and return reward.
-        
-        Args:
-            action: Index of the selected model
-        
-        Returns:
-            observation: Next state (random, since episode ends)
-            reward:      Selected model's score + bonus for best pick
-            terminated:  Always True (single-step episode)
-            truncated:   Always False
-            info:        Details about selected vs best model
+        Reward the selected model with its real CV score (+ near-best bonus).
+        Episodes are single-step, so the returned observation is a zero
+        vector (never used by the agent — done=True ends the episode).
         """
-        if len(self.training_data) == 0:
-            return np.random.rand(32).astype(np.float32), 0.0, True, False, {}
-        
         data = self.training_data[self.current_idx]
         model_scores = data['model_scores']
-        
-        # Get score for the model the agent selected
+
         selected_model = self.models[action]
-        selected_score = model_scores.get(selected_model, 0.5)
-        
-        # Base reward = model's CV score
+        # A model absent from the scores dict means it failed during
+        # collection — treat as a poor (but defined) outcome.
+        selected_score = model_scores.get(selected_model, 0.0)
+
         reward = selected_score
-        
-        # Bonus +0.1 if the agent picked the best (or near-best) model
         best_score = max(model_scores.values())
         if selected_score >= best_score - 0.01:
             reward += 0.1
-        
-        # Episode ends after one step
-        done = True
-        
+
         info = {
             'selected_model': selected_model,
             'selected_score': selected_score,
             'best_model': max(model_scores, key=model_scores.get),
             'best_score': best_score,
-            'regret': best_score - selected_score
+            'regret': best_score - selected_score,
         }
-        
-        # Return dummy next observation (episode is done anyway)
-        return np.random.rand(32).astype(np.float32), reward, done, False, info
+
+        # Terminal observation: zeros (defined, deterministic — the previous
+        # implementation returned random noise here, which polluted nothing
+        # functionally but was misleading dummy data).
+        terminal_obs = np.zeros(N_META_FEATURES, dtype=np.float32)
+        return terminal_obs, reward, True, False, info

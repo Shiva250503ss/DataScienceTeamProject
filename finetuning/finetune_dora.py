@@ -40,10 +40,18 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
+    parser.add_argument("--base-model", type=str, default=None,
+                        help="HF model id override (small-GPU smoke runs)")
+    parser.add_argument("--max-samples", type=int, default=None,
+                        help="Cap training examples (smoke runs)")
+    parser.add_argument("--report-to", type=str, default="mlflow",
+                        choices=["mlflow", "none"])
     args = parser.parse_args()
 
     require_cuda("dora")
     output_dir = os.path.join(MODELS_DIR, "dora")
+    os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "datapilot-finetuning")
+    base_model = args.base_model or BASE_MODEL_HF
 
     import torch
     from datasets import Dataset
@@ -53,7 +61,7 @@ def main():
     from trl import SFTTrainer
 
     # ── 1. Load base in 4-bit NF4 (same quantization recipe as QLoRA) ─────
-    print(f"Loading {BASE_MODEL_HF} in 4-bit NF4 via bitsandbytes...")
+    print(f"Loading {base_model} in 4-bit NF4 via bitsandbytes...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -61,12 +69,13 @@ def main():
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
     model = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL_HF,
+        base_model,
         quantization_config=bnb_config,
         device_map="auto",
     )
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_HF)
-    tokenizer.pad_token = tokenizer.eos_token  # Mistral has no pad token
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token  # Mistral has no pad token
 
     # kbit prep: casts layernorms to fp32, enables gradient checkpointing,
     # and makes the input embeddings require grads — required for stable
@@ -89,12 +98,15 @@ def main():
 
     # ── 3. Data ───────────────────────────────────────────────────────────
     train_rows, val_rows, _ = load_sft_splits()
+    if args.max_samples:
+        train_rows = train_rows[:args.max_samples]
+        val_rows = val_rows[:max(8, args.max_samples // 8)]
     to_text = lambda rows: Dataset.from_dict({
         "text": [format_example(r["input"], r["output"], tokenizer.eos_token)
                  for r in rows]
     })
     train_ds, val_ds = to_text(train_rows), to_text(val_rows)
-    print(f"Train: {len(train_ds)} | Val: {len(val_ds)}")
+    print(f"Train: {len(train_ds)} | Val: {len(val_ds)} | base: {base_model}")
 
     # ── 4. Train ──────────────────────────────────────────────────────────
     tracker = RunTracker("dora", output_dir)
@@ -117,23 +129,23 @@ def main():
             warmup_ratio=0.03,
             logging_steps=10,
             eval_strategy="epoch",
-            save_strategy="epoch",
-            save_total_limit=1,
+            save_strategy="no",
             bf16=True,
             optim="paged_adamw_8bit",
             gradient_checkpointing=True,
             seed=SEED,
-            report_to="none",
+            report_to=args.report_to if args.report_to != "none" else "none",
+            run_name=f"dora-{base_model.split('/')[-1]}",
         ),
     )
     trainer.train()
 
     train_loss, eval_loss = get_final_losses(trainer)
     tracker.stop(final_loss=train_loss, eval_loss=eval_loss, extra={
-        "base_model": BASE_MODEL_HF,
+        "base_model": base_model,
         "method": "DoRA (weight-decomposed LoRA, PEFT, 4-bit base)",
         "rank": args.rank, "alpha": args.alpha, "lr": args.lr,
-        "epochs": args.epochs,
+        "epochs": args.epochs, "n_train": len(train_ds),
     })
 
     model.save_pretrained(output_dir)

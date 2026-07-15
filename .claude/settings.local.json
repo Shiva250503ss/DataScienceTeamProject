@@ -30,7 +30,10 @@
       "PowerShell(python -c \"import json; r=json.loads\\(open\\('finetuning/data/train.jsonl',encoding='utf-8'\\).readline\\(\\)\\); print\\(r['input'][:420]\\); print\\('---OUTPUT---'\\); print\\(r['output']\\)\")",
       "PowerShell(python -m finetuning.dataset_prep --n-synthetic 800)",
       "PowerShell(python -c \"import json; rows=[json.loads\\(l\\) for l in open\\('finetuning/data/train.jsonl',encoding='utf-8'\\)]; r=rows[3]; print\\(r['input'][:380]\\); print\\('---OUTPUT---'\\); print\\(r['output']\\); print\\('---'\\); print\\(len\\(rows\\),'train rows'\\)\")",
-      "PowerShell(Remove-Item -Recurse -Force rag_store -Confirm:$false)"
+      "PowerShell(Remove-Item -Recurse -Force rag_store -Confirm:$false)",
+      "PowerShell(Write-Output \"=== RAM ===\"; Get-CimInstance Win32_ComputerSystem | ForEach-Object { \"{0:N1} GB total\" -f \\($_.TotalPhysicalMemory/1GB\\) }; Get-CimInstance Win32_OperatingSystem | ForEach-Object { \"{0:N1} GB free\" -f \\($_.FreePhysicalMemory/1MB/1024\\) }; Write-Output \"=== DISK C: ===\"; Get-PSDrive C | ForEach-Object { \"{0:N1} GB free of {1:N1} GB\" -f \\($_.Free/1GB\\), \\(\\($_.Used+$_.Free\\)/1GB\\) }; Write-Output \"=== PYTHON ===\"; python --version; Write-Output \"=== VIDEO CONTROLLERS ===\"; Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name)",
+      "PowerShell(python -m pip install torch --index-url https://download.pytorch.org/whl/cu124 --quiet 2>&1)",
+      "PowerShell(python -c \"import torch; print\\('torch', torch.__version__, 'cuda available:', torch.cuda.is_available\\(\\)\\)\")"
     ]
   }
 }

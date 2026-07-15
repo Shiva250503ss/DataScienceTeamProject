@@ -78,23 +78,57 @@ Answer with ONLY this JSON: {{"clarity": <int>, "accuracy": <int>}}"""
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_with_adapter(adapter_path: Optional[str], test_rows: List[Dict],
-                          max_new_tokens: int = 200) -> List[str]:
+                          max_new_tokens: int = 200,
+                          backend: str = "unsloth",
+                          base_model_override: Optional[str] = None) -> List[str]:
     """
-    Load base (+ adapter if given) with Unsloth in 4-bit inference mode and
-    generate an explanation for every test input. Model is freed afterwards
-    so multiple adapters can be benchmarked in one process.
+    Load base (+ adapter if given) in 4-bit inference mode and generate an
+    explanation for every test input. Model is freed afterwards so multiple
+    adapters can be benchmarked in one process.
+
+    backend="transformers" reads the adapter's own base_model_name_or_path
+    from adapter_config.json, so adapters trained on any base (e.g. the
+    small-GPU smoke runs) are benchmarked against exactly the base they were
+    trained on.
     """
     import torch
-    from unsloth import FastLanguageModel
 
-    name = adapter_path or BASE_MODEL_UNSLOTH_4BIT
-    print(f"  loading {name} ...")
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=name,
-        max_seq_length=MAX_SEQ_LENGTH,
-        load_in_4bit=True,
-    )
-    FastLanguageModel.for_inference(model)  # enables Unsloth's fast decoding
+    if backend == "unsloth":
+        from unsloth import FastLanguageModel
+        name = adapter_path or base_model_override or BASE_MODEL_UNSLOTH_4BIT
+        print(f"  loading {name} (unsloth)...")
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=name,
+            max_seq_length=MAX_SEQ_LENGTH,
+            load_in_4bit=True,
+        )
+        FastLanguageModel.for_inference(model)  # Unsloth fast decoding
+    else:
+        from peft import PeftModel
+        from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                                  BitsAndBytesConfig)
+        # Resolve which base this adapter was trained on
+        base = base_model_override
+        if adapter_path:
+            cfg_path = os.path.join(adapter_path, "adapter_config.json")
+            if base is None and os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    base = json.load(f).get("base_model_name_or_path")
+        base = base or BASE_MODEL_UNSLOTH_4BIT
+        print(f"  loading base {base} + adapter {adapter_path} (transformers)...")
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            base, quantization_config=bnb_config, device_map="auto")
+        tokenizer = AutoTokenizer.from_pretrained(base)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        if adapter_path:
+            model = PeftModel.from_pretrained(model, adapter_path)
+        model.eval()
 
     outputs = []
     for i, row in enumerate(test_rows):
@@ -202,6 +236,15 @@ def main():
                         help="Subset to benchmark (default: every dir in finetuning/models)")
     parser.add_argument("--skip-base", action="store_true",
                         help="Skip the untuned-base baseline row")
+    parser.add_argument("--backend", choices=["unsloth", "transformers"],
+                        default="unsloth",
+                        help="Generation backend (transformers for smoke adapters)")
+    parser.add_argument("--base-model", type=str, default=None,
+                        help="Base model for the untuned baseline row "
+                             "(defaults to adapter's own base / Mistral-7B)")
+    parser.add_argument("--label", type=str, default=None,
+                        help="Extra label prepended to the results file, e.g. "
+                             "'SMOKE TEST (0.5B base on 4GB GPU) — NOT REPRESENTATIVE'")
     args = parser.parse_args()
 
     require_cuda("benchmark")
@@ -229,7 +272,9 @@ def main():
     for name, path in candidates:
         print(f"\n=== {name} ===")
         t0 = time.time()
-        outputs = generate_with_adapter(path, test_rows)
+        outputs = generate_with_adapter(path, test_rows,
+                                        backend=args.backend,
+                                        base_model_override=args.base_model)
         gen_time = time.time() - t0
         print("  judging with LLM-as-judge ...")
         judge = judge_all(test_rows, outputs)
@@ -258,8 +303,13 @@ def main():
     lines = [
         "# Fine-Tuning Benchmark Results",
         "",
+    ]
+    if args.label:
+        lines += [f"> **{args.label}**", ""]
+    lines += [
         f"Test set: {len(test_rows)} held-out examples | "
-        f"Judge: {JUDGE_MODEL} via Ollama (clarity + accuracy, 1-5)",
+        f"Judge: {JUDGE_MODEL} via Ollama (clarity + accuracy, 1-5) | "
+        f"Generation backend: {args.backend}",
         "",
         "| Technique | Train time | Peak VRAM (GB) | Train loss | Eval loss | "
         "Clarity (1-5) | Accuracy (1-5) | Overall | Jargon leak % | Judged n |",

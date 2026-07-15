@@ -1,0 +1,705 @@
+{
+ "nodes": {
+  "dataset:titanic": {
+   "type": "dataset",
+   "name": "titanic"
+  },
+  "target:target": {
+   "type": "target",
+   "name": "target"
+  },
+  "column:sex": {
+   "type": "column",
+   "name": "sex"
+  },
+  "column:boat": {
+   "type": "column",
+   "name": "boat"
+  },
+  "column:pclass_3.0": {
+   "type": "column",
+   "name": "pclass_3.0"
+  },
+  "column:fare": {
+   "type": "column",
+   "name": "fare"
+  },
+  "column:ticket": {
+   "type": "column",
+   "name": "ticket"
+  },
+  "column:age": {
+   "type": "column",
+   "name": "age"
+  },
+  "column:cabin": {
+   "type": "column",
+   "name": "cabin"
+  },
+  "column:body": {
+   "type": "column",
+   "name": "body"
+  },
+  "column:home.dest": {
+   "type": "column",
+   "name": "home.dest"
+  },
+  "column:embarked_s": {
+   "type": "column",
+   "name": "embarked_S"
+  },
+  "column:sibsp_1.0": {
+   "type": "column",
+   "name": "sibsp_1.0"
+  },
+  "column:pclass_2.0": {
+   "type": "column",
+   "name": "pclass_2.0"
+  },
+  "column:embarked_q": {
+   "type": "column",
+   "name": "embarked_Q"
+  },
+  "column:parch_1.0": {
+   "type": "column",
+   "name": "parch_1.0"
+  },
+  "column:parch_2.0": {
+   "type": "column",
+   "name": "parch_2.0"
+  },
+  "dataset:iris": {
+   "type": "dataset",
+   "name": "iris"
+  },
+  "target:species": {
+   "type": "target",
+   "name": "Species"
+  },
+  "column:petalwidthcm": {
+   "type": "column",
+   "name": "PetalWidthCm"
+  },
+  "column:petallengthcm": {
+   "type": "column",
+   "name": "PetalLengthCm"
+  },
+  "column:sepallengthcm": {
+   "type": "column",
+   "name": "SepalLengthCm"
+  },
+  "column:sepalwidthcm": {
+   "type": "column",
+   "name": "SepalWidthCm"
+  },
+  "dataset:abalone": {
+   "type": "dataset",
+   "name": "abalone"
+  },
+  "column:shucked_weight": {
+   "type": "column",
+   "name": "Shucked_weight"
+  },
+  "column:whole_weight": {
+   "type": "column",
+   "name": "Whole_weight"
+  },
+  "column:viscera_weight": {
+   "type": "column",
+   "name": "Viscera_weight"
+  },
+  "column:shell_weight": {
+   "type": "column",
+   "name": "Shell_weight"
+  },
+  "column:height": {
+   "type": "column",
+   "name": "Height"
+  },
+  "column:diameter": {
+   "type": "column",
+   "name": "Diameter"
+  },
+  "column:sex_i": {
+   "type": "column",
+   "name": "Sex_I"
+  },
+  "column:length": {
+   "type": "column",
+   "name": "Length"
+  },
+  "column:sex_m": {
+   "type": "column",
+   "name": "Sex_M"
+  }
+ },
+ "edges": [
+  {
+   "src": "target:target",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'target' is the prediction target of the 'titanic' dataset (classification)."
+  },
+  {
+   "src": "column:sex",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'sex' is a column in 'titanic'."
+  },
+  {
+   "src": "column:sex",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.2078,
+   "fact": "In 'titanic', 'sex' was a driver of 'target' (mean |SHAP| = 0.2078)."
+  },
+  {
+   "src": "column:boat",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'boat' is a column in 'titanic'."
+  },
+  {
+   "src": "column:boat",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.1512,
+   "fact": "In 'titanic', 'boat' was a driver of 'target' (mean |SHAP| = 0.1512)."
+  },
+  {
+   "src": "column:pclass_3.0",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'pclass_3.0' is a column in 'titanic'."
+  },
+  {
+   "src": "column:pclass_3.0",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0784,
+   "fact": "In 'titanic', 'pclass_3.0' was a driver of 'target' (mean |SHAP| = 0.0784)."
+  },
+  {
+   "src": "column:fare",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'fare' is a column in 'titanic'."
+  },
+  {
+   "src": "column:fare",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0223,
+   "fact": "In 'titanic', 'fare' was a driver of 'target' (mean |SHAP| = 0.0223)."
+  },
+  {
+   "src": "column:ticket",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'ticket' is a column in 'titanic'."
+  },
+  {
+   "src": "column:ticket",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0214,
+   "fact": "In 'titanic', 'ticket' was a driver of 'target' (mean |SHAP| = 0.0214)."
+  },
+  {
+   "src": "column:age",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'age' is a column in 'titanic'."
+  },
+  {
+   "src": "column:age",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0176,
+   "fact": "In 'titanic', 'age' was a driver of 'target' (mean |SHAP| = 0.0176)."
+  },
+  {
+   "src": "column:cabin",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'cabin' is a column in 'titanic'."
+  },
+  {
+   "src": "column:cabin",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0113,
+   "fact": "In 'titanic', 'cabin' was a driver of 'target' (mean |SHAP| = 0.0113)."
+  },
+  {
+   "src": "column:body",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'body' is a column in 'titanic'."
+  },
+  {
+   "src": "column:body",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0098,
+   "fact": "In 'titanic', 'body' was a driver of 'target' (mean |SHAP| = 0.0098)."
+  },
+  {
+   "src": "column:home.dest",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'home.dest' is a column in 'titanic'."
+  },
+  {
+   "src": "column:home.dest",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0089,
+   "fact": "In 'titanic', 'home.dest' was a driver of 'target' (mean |SHAP| = 0.0089)."
+  },
+  {
+   "src": "column:embarked_s",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'embarked_S' is a column in 'titanic'."
+  },
+  {
+   "src": "column:embarked_s",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0014,
+   "fact": "In 'titanic', 'embarked_S' was a driver of 'target' (mean |SHAP| = 0.0014)."
+  },
+  {
+   "src": "column:sibsp_1.0",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'sibsp_1.0' is a column in 'titanic'."
+  },
+  {
+   "src": "column:sibsp_1.0",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0013,
+   "fact": "In 'titanic', 'sibsp_1.0' was a driver of 'target' (mean |SHAP| = 0.0013)."
+  },
+  {
+   "src": "column:pclass_2.0",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'pclass_2.0' is a column in 'titanic'."
+  },
+  {
+   "src": "column:pclass_2.0",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0002,
+   "fact": "In 'titanic', 'pclass_2.0' was a driver of 'target' (mean |SHAP| = 0.0002)."
+  },
+  {
+   "src": "column:embarked_q",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'embarked_Q' is a column in 'titanic'."
+  },
+  {
+   "src": "column:embarked_q",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0001,
+   "fact": "In 'titanic', 'embarked_Q' was a driver of 'target' (mean |SHAP| = 0.0001)."
+  },
+  {
+   "src": "column:parch_1.0",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'parch_1.0' is a column in 'titanic'."
+  },
+  {
+   "src": "column:parch_1.0",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0001,
+   "fact": "In 'titanic', 'parch_1.0' was a driver of 'target' (mean |SHAP| = 0.0001)."
+  },
+  {
+   "src": "column:parch_2.0",
+   "dst": "dataset:titanic",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'parch_2.0' is a column in 'titanic'."
+  },
+  {
+   "src": "column:parch_2.0",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0001,
+   "fact": "In 'titanic', 'parch_2.0' was a driver of 'target' (mean |SHAP| = 0.0001)."
+  },
+  {
+   "src": "target:species",
+   "dst": "dataset:iris",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Species' is the prediction target of the 'iris' dataset (classification)."
+  },
+  {
+   "src": "column:petalwidthcm",
+   "dst": "dataset:iris",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'PetalWidthCm' is a column in 'iris'."
+  },
+  {
+   "src": "column:petalwidthcm",
+   "dst": "target:species",
+   "relation": "predicts",
+   "weight": 0.1607,
+   "fact": "In 'iris', 'PetalWidthCm' was a driver of 'Species' (mean |SHAP| = 0.1607)."
+  },
+  {
+   "src": "column:petallengthcm",
+   "dst": "dataset:iris",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'PetalLengthCm' is a column in 'iris'."
+  },
+  {
+   "src": "column:petallengthcm",
+   "dst": "target:species",
+   "relation": "predicts",
+   "weight": 0.1471,
+   "fact": "In 'iris', 'PetalLengthCm' was a driver of 'Species' (mean |SHAP| = 0.1471)."
+  },
+  {
+   "src": "column:sepallengthcm",
+   "dst": "dataset:iris",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'SepalLengthCm' is a column in 'iris'."
+  },
+  {
+   "src": "column:sepallengthcm",
+   "dst": "target:species",
+   "relation": "predicts",
+   "weight": 0.098,
+   "fact": "In 'iris', 'SepalLengthCm' was a driver of 'Species' (mean |SHAP| = 0.0980)."
+  },
+  {
+   "src": "column:sepalwidthcm",
+   "dst": "dataset:iris",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'SepalWidthCm' is a column in 'iris'."
+  },
+  {
+   "src": "column:sepalwidthcm",
+   "dst": "target:species",
+   "relation": "predicts",
+   "weight": 0.0745,
+   "fact": "In 'iris', 'SepalWidthCm' was a driver of 'Species' (mean |SHAP| = 0.0745)."
+  },
+  {
+   "src": "column:petallengthcm",
+   "dst": "column:petalwidthcm",
+   "relation": "correlates_with",
+   "weight": 0.9629,
+   "fact": "In 'iris', 'PetalLengthCm' and 'PetalWidthCm' are strongly related (strength = 0.96)."
+  },
+  {
+   "src": "column:petalwidthcm",
+   "dst": "column:petallengthcm",
+   "relation": "correlates_with",
+   "weight": 0.9629,
+   "fact": "In 'iris', 'PetalLengthCm' and 'PetalWidthCm' are strongly related (strength = 0.96)."
+  },
+  {
+   "src": "column:sepallengthcm",
+   "dst": "column:petallengthcm",
+   "relation": "correlates_with",
+   "weight": 0.8718,
+   "fact": "In 'iris', 'SepalLengthCm' and 'PetalLengthCm' are strongly related (strength = 0.87)."
+  },
+  {
+   "src": "column:petallengthcm",
+   "dst": "column:sepallengthcm",
+   "relation": "correlates_with",
+   "weight": 0.8718,
+   "fact": "In 'iris', 'SepalLengthCm' and 'PetalLengthCm' are strongly related (strength = 0.87)."
+  },
+  {
+   "src": "column:sepallengthcm",
+   "dst": "column:petalwidthcm",
+   "relation": "correlates_with",
+   "weight": 0.8179,
+   "fact": "In 'iris', 'SepalLengthCm' and 'PetalWidthCm' are strongly related (strength = 0.82)."
+  },
+  {
+   "src": "column:petalwidthcm",
+   "dst": "column:sepallengthcm",
+   "relation": "correlates_with",
+   "weight": 0.8179,
+   "fact": "In 'iris', 'SepalLengthCm' and 'PetalWidthCm' are strongly related (strength = 0.82)."
+  },
+  {
+   "src": "target:target",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'target' is the prediction target of the 'abalone' dataset (regression)."
+  },
+  {
+   "src": "column:shucked_weight",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Shucked_weight' is a column in 'abalone'."
+  },
+  {
+   "src": "column:shucked_weight",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 2.6479,
+   "fact": "In 'abalone', 'Shucked_weight' was a driver of 'target' (mean |SHAP| = 2.6479)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Whole_weight' is a column in 'abalone'."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 2.6424,
+   "fact": "In 'abalone', 'Whole_weight' was a driver of 'target' (mean |SHAP| = 2.6424)."
+  },
+  {
+   "src": "column:viscera_weight",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Viscera_weight' is a column in 'abalone'."
+  },
+  {
+   "src": "column:viscera_weight",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.8656,
+   "fact": "In 'abalone', 'Viscera_weight' was a driver of 'target' (mean |SHAP| = 0.8656)."
+  },
+  {
+   "src": "column:shell_weight",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Shell_weight' is a column in 'abalone'."
+  },
+  {
+   "src": "column:shell_weight",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.6587,
+   "fact": "In 'abalone', 'Shell_weight' was a driver of 'target' (mean |SHAP| = 0.6587)."
+  },
+  {
+   "src": "column:height",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Height' is a column in 'abalone'."
+  },
+  {
+   "src": "column:height",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.4437,
+   "fact": "In 'abalone', 'Height' was a driver of 'target' (mean |SHAP| = 0.4437)."
+  },
+  {
+   "src": "column:diameter",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Diameter' is a column in 'abalone'."
+  },
+  {
+   "src": "column:diameter",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.3871,
+   "fact": "In 'abalone', 'Diameter' was a driver of 'target' (mean |SHAP| = 0.3871)."
+  },
+  {
+   "src": "column:sex_i",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Sex_I' is a column in 'abalone'."
+  },
+  {
+   "src": "column:sex_i",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.3088,
+   "fact": "In 'abalone', 'Sex_I' was a driver of 'target' (mean |SHAP| = 0.3088)."
+  },
+  {
+   "src": "column:length",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Length' is a column in 'abalone'."
+  },
+  {
+   "src": "column:length",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.218,
+   "fact": "In 'abalone', 'Length' was a driver of 'target' (mean |SHAP| = 0.2180)."
+  },
+  {
+   "src": "column:sex_m",
+   "dst": "dataset:abalone",
+   "relation": "belongs_to",
+   "weight": 1.0,
+   "fact": "'Sex_M' is a column in 'abalone'."
+  },
+  {
+   "src": "column:sex_m",
+   "dst": "target:target",
+   "relation": "predicts",
+   "weight": 0.0561,
+   "fact": "In 'abalone', 'Sex_M' was a driver of 'target' (mean |SHAP| = 0.0561)."
+  },
+  {
+   "src": "column:length",
+   "dst": "column:diameter",
+   "relation": "correlates_with",
+   "weight": 0.9867,
+   "fact": "In 'abalone', 'Length' and 'Diameter' are strongly related (strength = 0.99)."
+  },
+  {
+   "src": "column:diameter",
+   "dst": "column:length",
+   "relation": "correlates_with",
+   "weight": 0.9867,
+   "fact": "In 'abalone', 'Length' and 'Diameter' are strongly related (strength = 0.99)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "column:shucked_weight",
+   "relation": "correlates_with",
+   "weight": 0.971,
+   "fact": "In 'abalone', 'Whole_weight' and 'Shucked_weight' are strongly related (strength = 0.97)."
+  },
+  {
+   "src": "column:shucked_weight",
+   "dst": "column:whole_weight",
+   "relation": "correlates_with",
+   "weight": 0.971,
+   "fact": "In 'abalone', 'Whole_weight' and 'Shucked_weight' are strongly related (strength = 0.97)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "column:viscera_weight",
+   "relation": "correlates_with",
+   "weight": 0.9675,
+   "fact": "In 'abalone', 'Whole_weight' and 'Viscera_weight' are strongly related (strength = 0.97)."
+  },
+  {
+   "src": "column:viscera_weight",
+   "dst": "column:whole_weight",
+   "relation": "correlates_with",
+   "weight": 0.9675,
+   "fact": "In 'abalone', 'Whole_weight' and 'Viscera_weight' are strongly related (strength = 0.97)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "column:shell_weight",
+   "relation": "correlates_with",
+   "weight": 0.9602,
+   "fact": "In 'abalone', 'Whole_weight' and 'Shell_weight' are strongly related (strength = 0.96)."
+  },
+  {
+   "src": "column:shell_weight",
+   "dst": "column:whole_weight",
+   "relation": "correlates_with",
+   "weight": 0.9602,
+   "fact": "In 'abalone', 'Whole_weight' and 'Shell_weight' are strongly related (strength = 0.96)."
+  },
+  {
+   "src": "column:shucked_weight",
+   "dst": "column:viscera_weight",
+   "relation": "correlates_with",
+   "weight": 0.9353,
+   "fact": "In 'abalone', 'Shucked_weight' and 'Viscera_weight' are strongly related (strength = 0.94)."
+  },
+  {
+   "src": "column:viscera_weight",
+   "dst": "column:shucked_weight",
+   "relation": "correlates_with",
+   "weight": 0.9353,
+   "fact": "In 'abalone', 'Shucked_weight' and 'Viscera_weight' are strongly related (strength = 0.94)."
+  },
+  {
+   "src": "column:diameter",
+   "dst": "column:whole_weight",
+   "relation": "correlates_with",
+   "weight": 0.9318,
+   "fact": "In 'abalone', 'Diameter' and 'Whole_weight' are strongly related (strength = 0.93)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "column:diameter",
+   "relation": "correlates_with",
+   "weight": 0.9318,
+   "fact": "In 'abalone', 'Diameter' and 'Whole_weight' are strongly related (strength = 0.93)."
+  },
+  {
+   "src": "column:length",
+   "dst": "column:whole_weight",
+   "relation": "correlates_with",
+   "weight": 0.9315,
+   "fact": "In 'abalone', 'Length' and 'Whole_weight' are strongly related (strength = 0.93)."
+  },
+  {
+   "src": "column:whole_weight",
+   "dst": "column:length",
+   "relation": "correlates_with",
+   "weight": 0.9315,
+   "fact": "In 'abalone', 'Length' and 'Whole_weight' are strongly related (strength = 0.93)."
+  },
+  {
+   "src": "column:diameter",
+   "dst": "column:shell_weight",
+   "relation": "correlates_with",
+   "weight": 0.9177,
+   "fact": "In 'abalone', 'Diameter' and 'Shell_weight' are strongly related (strength = 0.92)."
+  },
+  {
+   "src": "column:shell_weight",
+   "dst": "column:diameter",
+   "relation": "correlates_with",
+   "weight": 0.9177,
+   "fact": "In 'abalone', 'Diameter' and 'Shell_weight' are strongly related (strength = 0.92)."
+  }
+ ]
+}

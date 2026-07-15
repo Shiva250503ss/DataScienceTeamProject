@@ -32,7 +32,10 @@ def _next_chart_key() -> str:
     return f"plotly_chart_{_chart_key_counter}"
 
 
-# ── Read Groq credentials from secrets if available ──────────────────────────
+# ── LLM settings — local Ollama primary; Groq secrets as optional fallback ───
+import os as _os
+_DEFAULT_OLLAMA_URL   = _os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_DEFAULT_OLLAMA_MODEL = _os.getenv("OLLAMA_MODEL", "mistral:7b-instruct")
 _DEFAULT_GROQ_KEY   = st.secrets.get("GROQ_API_KEY", "")
 _DEFAULT_GROQ_MODEL = st.secrets.get("GROQ_DEFAULT_MODEL", "llama-3.3-70b-versatile")
 
@@ -40,11 +43,13 @@ _DEFAULT_GROQ_MODEL = st.secrets.get("GROQ_DEFAULT_MODEL", "llama-3.3-70b-versat
 st.set_page_config(page_title=APP_TITLE, layout="wide")
 init_session_state(st)
 
-# ── Auto-connect Groq chat LLM from secrets on first load ────────────────────
-if _DEFAULT_GROQ_KEY and st.session_state.get("chat_llm_client") is None:
-    from services.llm_clients import GroqClient
-    st.session_state.chat_llm_client = GroqClient(api_key=_DEFAULT_GROQ_KEY, model=_DEFAULT_GROQ_MODEL)
-    st.session_state.chat_llm_model  = _DEFAULT_GROQ_MODEL
+# ── Auto-connect chat LLM on first load: local Ollama, cloud fallback if keyed ─
+if st.session_state.get("chat_llm_client") is None:
+    from services.llm_clients import OllamaClient, GroqClient
+    _fb = GroqClient(api_key=_DEFAULT_GROQ_KEY, model=_DEFAULT_GROQ_MODEL) if _DEFAULT_GROQ_KEY else None
+    st.session_state.chat_llm_client = OllamaClient(
+        base_url=_DEFAULT_OLLAMA_URL, model=_DEFAULT_OLLAMA_MODEL, fallback_client=_fb)
+    st.session_state.chat_llm_model = f"{_DEFAULT_OLLAMA_MODEL} (local Ollama)" + (" + Groq fallback" if _fb else "")
 
 st.title(APP_TITLE)
 st.caption("Upload any dataset and generate smart charts automatically.")

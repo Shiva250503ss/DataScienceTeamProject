@@ -422,6 +422,12 @@ class CleanerAgent(BaseAgent):
             if has_digit.sum() < len(sample) * 0.5:
                 continue
 
+            # Reject multi-number codes ("B57 B59 B63") — see profiler.py:
+            # concatenating separate numbers corrupts the data.
+            multi_number = sample.str.contains(r'\d\s+\S*\d', regex=True)
+            if multi_number.mean() > 0.20:
+                continue
+
             cleaned = self._clean_numeric_series(series.astype(str))
             numeric_parsed = pd.to_numeric(cleaned, errors='coerce')
             n_valid = numeric_parsed.notna().sum()

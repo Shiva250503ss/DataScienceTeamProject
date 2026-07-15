@@ -1,0 +1,50 @@
+[
+  {
+    "query": "why did the model predict a titanic passenger would survive",
+    "relevant_doc_ids": ["da18c69f8b1c1d567e446d7a631d49ea", "056c5cf52e0ff7d3377ff3d7b1203f9a"]
+  },
+  {
+    "query": "what factors made the model predict a passenger did not survive the titanic",
+    "relevant_doc_ids": ["95b9e5ff6f4c456cb7ca0c93a3ff35b7", "44cacf3bdea0df98be6f91c7599a4bbb", "0febce0468b5ef8d1e6a707b4cc43201", "09fe745289fadc58bf4411e42cd52814"]
+  },
+  {
+    "query": "overview report of the titanic dataset quality and model performance",
+    "relevant_doc_ids": ["e684e0a1195779b186b952a16f70f4b3", "dbbddaa4ca2f9cbfb4d7a7aa1860aa9b"]
+  },
+  {
+    "query": "which flower measurements drove the iris species classification",
+    "relevant_doc_ids": ["3f586351af31ba753c29c575255a0312", "06ec82d0830e75c69a2fdaea7968598d", "a119248e10cb4e4fe41497dbcbd78295"]
+  },
+  {
+    "query": "summary of the iris dataset analysis",
+    "relevant_doc_ids": ["37ab1fcf645fb914c8f9e804c2c54578"]
+  },
+  {
+    "query": "how did the model estimate the age in rings of an abalone",
+    "relevant_doc_ids": ["4247b76b091ce5148c75379ac1f0ed2a", "7f53ba41efad12a2cb6474cf18f9d048", "dee2a9ad77a3dd0e32ad20ffbe7aa808"]
+  },
+  {
+    "query": "abalone dataset overview and data quality",
+    "relevant_doc_ids": ["065d828b6fc63de75be29dcdfcfb910f"]
+  },
+  {
+    "query": "explanation of a prediction driven by the lifeboat column",
+    "relevant_doc_ids": ["da18c69f8b1c1d567e446d7a631d49ea", "09fe745289fadc58bf4411e42cd52814", "056c5cf52e0ff7d3377ff3d7b1203f9a", "0febce0468b5ef8d1e6a707b4cc43201"]
+  },
+  {
+    "query": "did travelling third class reduce survival chances",
+    "relevant_doc_ids": ["44cacf3bdea0df98be6f91c7599a4bbb", "09fe745289fadc58bf4411e42cd52814"]
+  },
+  {
+    "query": "petal width importance for classifying iris species",
+    "relevant_doc_ids": ["06ec82d0830e75c69a2fdaea7968598d", "3f586351af31ba753c29c575255a0312"]
+  },
+  {
+    "query": "regression prediction around 9.5 rings for an oyster",
+    "relevant_doc_ids": ["7f53ba41efad12a2cb6474cf18f9d048", "dee2a9ad77a3dd0e32ad20ffbe7aa808"]
+  },
+  {
+    "query": "high confidence prediction for iris class 2",
+    "relevant_doc_ids": ["a119248e10cb4e4fe41497dbcbd78295"]
+  }
+]

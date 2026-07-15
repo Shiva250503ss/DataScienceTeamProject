@@ -45,6 +45,34 @@ services:
     networks:
       - datapilot
 
+  # ── FastAPI backend ─────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datapilot-api
+    command: >
+      uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://datapilot:datapilot@postgres:5432/datapilot
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - app-output:/app/output
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - datapilot
+
   # ── PostgreSQL ──────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -145,6 +173,7 @@ volumes:
   qdrant-data:
   ollama-data:
   app-output:
+  uploads:
   rl-models:
 
 # ── Network ─────────────────────────────────────────────────
